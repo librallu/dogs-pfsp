@@ -1,0 +1,8 @@
+{
+	"instname":"../insts/Taillard/tai100_20_2.txt",
+	"t":"30",
+	"stoppingcriterion":"30.000000",
+	"avgmakespan":"6303.500000",
+	"avgiters":"8124.700000",
+	"objlist": [6303, 6302, 6307, 6300, 6301, 6302, 6304, 6308, 6301, 6307]
+}

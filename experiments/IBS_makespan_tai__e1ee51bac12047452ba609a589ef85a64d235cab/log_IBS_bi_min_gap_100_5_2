@@ -1,0 +1,4 @@
+##### LOG STDOUT:
+b' time (s)      nb nodes       objective      IBS            \n------------------------------------------------------------\n  0.000                                      start D=1      \n  0.004        5.1 k          5.178                         \n  0.004        5.1 k          5.178          start D=2      \n  0.012        12.6 k         5.175                         \n  0.012        12.6 k         5.175          start D=4      \n\n                nb pruned           4945\n\n             nb generated         12.6 k\n              nb expanded         304.0 \n               nb trashed           4.0 \n     avg branching factor            41.\n                  nb eval           2.0 \n                 nb guide         12.6 k\n        time searched (s)          0.013\n      generated nodes / s        995.1 k\n        solutions created           0.0 \n'
+##### LOG STDERR:
+None

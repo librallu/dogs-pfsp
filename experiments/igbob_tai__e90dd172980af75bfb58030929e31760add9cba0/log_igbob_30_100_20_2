@@ -1,0 +1,4 @@
+##### LOG STDOUT:
+b'### IGBOB: running experiments for: (../insts/Taillard/tai100_20_2.txt,30)\ncomputation time 30*n*m/2 = 30.000000\nrun 0 objective:\t6303\nrun 1 objective:\t6302\nrun 2 objective:\t6307\nrun 3 objective:\t6300\nrun 4 objective:\t6301\nrun 5 objective:\t6302\nrun 6 objective:\t6304\nrun 7 objective:\t6308\nrun 8 objective:\t6301\nrun 9 objective:\t6307\nEND IG_BoB\navg makespan:\t6303.500000\navg iterations:\t8124.700000\n'
+##### LOG STDERR:
+None
