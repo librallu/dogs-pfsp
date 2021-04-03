@@ -1,7 +1,12 @@
 #!/usr/bin/python3
-from experiments import get_git_id, run_parallel, execute_program
+from experiments import get_git_id
 import os
 
+BRANCHINGS = [
+    ["f_flowtime", "alpha"]
+]
+
+output_dir_prefix = "IBS_f_flowtime_tai"
 
 TAI_TYPES = [
     (20, 5),
@@ -18,33 +23,23 @@ TAI_TYPES = [
     (500, 20)
 ]
 
-BRANCHING = ["forward"]
-GUIDES = ["alpha", "walpha"]
 
-def create_experiment(n,m,i,branching,guide):
-    return lambda: execute_program(output_dir, "../target/release/dogs-pfsp {} {} {} {} {} {}".format(
-        "../insts/Taillard/tai{}_{}_{}.txt".format(n,m,i), # inst
-        n*m*0.045, # T
-        "flowtime",
-        guide,
-        branching,
-        output_dir+"/IBS_{}_{}_{}_{}_{}".format(branching,guide,n,m,i) # output files
-        ), "log_IBS_{}_{}_{}_{}_{}".format(branching,guide,n,m,i), "completed_list.txt")
+def create_experiment(n,m,i,branching,guide,output_dir):
+    output_prefix = "{}/TA_{}_{}_{}_{}_{}".format(output_dir, n,m,i,branching,guide)
+    exec_string = "tsp ../target/release/dogs-pfsp -i ../insts/Taillard/tai{}_{}_{}.txt -s {} -p {} -t {} {} -g {}".format(
+        n,m,i, output_prefix+".sol", output_prefix+".perf.json", n*m*0.045, branching, guide
+    )
+    os.system(exec_string)
 
 if __name__ == "__main__":
     exp_id = get_git_id()
-    output_dir = "IBS_flowtime_tai__{}".format(exp_id)
+    output_dir = "{}__{}".format(output_dir_prefix, exp_id)
     if os.path.exists(output_dir):
         print("DIRECTORY {} ALREADY EXISTS".format(output_dir))
     else:
         print("CREATING RESULT DIRECTORY ({})".format(output_dir))
         os.mkdir(output_dir)
-    print("RUNNING EXPERIMENTS")
-    tasks = []
     for n,m in TAI_TYPES:
-        for g in GUIDES:
-            for b in BRANCHING:
-                for i in range(0,10):
-                    tasks.append(create_experiment(n,m,i,b,g))
-    run_parallel(tasks)
-    print("=== EXPERIMENT FINISHED: {} ===".format(exp_id))
+        for i in range(0,10):
+            for b,g in BRANCHINGS:
+                create_experiment(n,m,i,b,g,output_dir)

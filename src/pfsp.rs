@@ -13,6 +13,8 @@ pub struct Instance {
     m: MachineId,
     /// processing time of job i on machine j
     p: Vec<Vec<Time>>,
+    /// sum_p[m]: sum of completion times on machine m
+    sum_p: Vec<Time>,
 }
 
 impl Instance {
@@ -44,41 +46,54 @@ impl Instance {
                 }
             }
         }
+        let sum_p = Self::compute_sum_p(&p);
         // return the instance
         Ok(Instance {
             name: filename.to_string(),
-            n: n,
-            m: m,
-            p: p,
+            n,
+            m,
+            p,
+            sum_p,
         })
     }
 
     /// creates an instance from a processing time matrix
     #[allow(dead_code)]
     pub fn from_pmj(p:Vec<Vec<Time>>) -> Self {
+        let sum_p = Self::compute_sum_p(&p);
         Self {
             name: "NONAME_INSTANCE".to_string(),
             n: p[0].len() as JobId,
             m: p.len() as MachineId,
-            p: p,
+            p,
+            sum_p,
         }
     }
 
-    pub fn nb_jobs(&self) -> JobId {
-        return self.n;
-    }
+    pub fn nb_jobs(&self) -> JobId { self.n }
 
-    pub fn nb_machines(&self) -> MachineId {
-        return self.m;
-    }
+    pub fn nb_machines(&self) -> MachineId { self.m }
 
-    pub fn p(&self, i:JobId, j:MachineId) -> Time {
-        return self.p[j as usize][i as usize];
-    }
+    pub fn p(&self, i:JobId, j:MachineId) -> Time { self.p[j as usize][i as usize] }
 
     #[allow(dead_code)]
-    pub fn pmj(&self, m:MachineId, j:JobId) -> Time {
-        return self.p(j,m);
+    pub fn pmj(&self, m:MachineId, j:JobId) -> Time { self.p(j,m) }
+
+    pub fn sum_p(&self, m:MachineId) -> Time { self.sum_p[m as usize] }
+
+
+    /* INTERNAL METHODS */
+    /**
+    * p[m][j]: processing time of job j on machine m
+    */
+    fn compute_sum_p(p: &Vec<Vec<Time>>) -> Vec<Time> {
+        let mut res = vec![0;p.len()];
+        for m in 0..p.len() {
+            for j in 0..p[m].len() {
+                res[m] += p[m][j];
+            }
+        }
+        res
     }
 
 }

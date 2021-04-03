@@ -1,14 +1,16 @@
 use std::cmp::max;
 use ordered_float::OrderedFloat;
-use dogs::searchspace::{SearchSpace, SearchTree, TotalChildrenExpansion, GuidedSpace};
-use crate::nehhelper::{compute_eqf, EQF, compute_idle_time};
 
+use dogs::searchspace::{SearchSpace, SearchTree, TotalChildrenExpansion, GuidedSpace};
+
+use crate::nehhelper::{compute_eqf, EQF, compute_idle_time, first_insertion_neighborhood, LocalState};
 use crate::pfsp::{JobId, Time, Instance};
 
-
-pub enum TiebreakingScheme {
-    NO,  // no tie breaking
-    FF   // FF tie breaking (see https://www.sciencedirect.com/science/article/abs/pii/S0305054813003638) 
+#[derive(Debug, Clone)]
+pub enum Guide {
+    Bound,  // no tie breaking
+    FF,  // FF tie breaking (see https://www.sciencedirect.com/science/article/abs/pii/S0305054813003638)
+    Alpha,
 }
 
 
@@ -22,7 +24,7 @@ pub struct NEHNode {
 pub struct NEHSearch {
     inst: Instance,
     ordered_jobs: Vec<JobId>,  // ordered jobs according to the ordering heuristic
-    tie_breaking: TiebreakingScheme,
+    guide: Guide,
 }
 
 
@@ -31,21 +33,64 @@ impl SearchSpace<NEHNode, Vec<JobId>> for NEHSearch {
         debug_assert!(self.goal(node));
         return node.inserted_jobs.clone();
     }
+
+    fn handle_new_best(&mut self, node: NEHNode) -> NEHNode {
+        // apply neighborhood decent
+        let mut local_state = LocalState {
+            s: self.solution(&node),
+            v: self.bound(&node)
+        };
+        if true {
+            loop {
+                match first_insertion_neighborhood(&self.inst, &local_state) {
+                    None => { break; },
+                    Some(e) => {
+                        // println!("{} \t -> \t {}", local_state.v, e.v);
+                        local_state = e;
+                    }
+                }
+            }
+        }
+        // // write solution in a file
+        // match &self.solution_file {
+        //     None => {},
+        //     Some(filename) => {
+        //         let mut file = match File::create(filename) {
+        //             Err(why) => panic!("couldn't create {}: {}", filename, why),
+        //             Ok(file) => file
+        //         };
+        //         let sol = &local_state.s;
+        //         for j in sol {
+        //             write!(&mut file, "{} ", j).unwrap();
+        //         }
+        //         writeln!(&mut file, "\n").unwrap();
+        //     }
+        // }
+        NEHNode {
+            inserted_jobs: local_state.s, // already inserted jobs (partial sequence)
+            bound: local_state.v,
+            idletime: None,
+        }
+    }
 }
 
 
 impl GuidedSpace<NEHNode, OrderedFloat<f64>> for NEHSearch {
     fn guide(&mut self, node: &NEHNode) -> OrderedFloat<f64> {
         // let alpha:f64 = (node.inserted_jobs.len() as f64)/(self.inst.nb_jobs() as f64);
-        match self.tie_breaking {
-            TiebreakingScheme::NO => OrderedFloat(node.bound as f64),
-            TiebreakingScheme::FF => match node.idletime {
+        match self.guide {
+            Guide::Bound => OrderedFloat(node.bound as f64),
+            Guide::FF => match node.idletime {
                 None => OrderedFloat(node.bound as f64),
                 Some(v) => OrderedFloat((node.bound as f64)-1./(v as f64))
-                // Some(v) => OrderedFloat(
-                //     (node.bound as f64)*alpha +
-                //     ((v as f64)/(self.inst.nb_machines() as f64))*(1.-alpha)
-                // )
+            }
+            Guide::Alpha => {
+                let alpha = self.compute_alpha(node);
+                let tmp:f64 = 10.;
+                OrderedFloat(
+                    alpha*node.bound as f64 +
+                    (1.-alpha)*tmp
+                )
             }
         }
     }
@@ -55,7 +100,7 @@ impl GuidedSpace<NEHNode, OrderedFloat<f64>> for NEHSearch {
 impl TotalChildrenExpansion<NEHNode> for NEHSearch {
     fn children(&mut self, node: &mut NEHNode) -> Vec<NEHNode> {
         debug_assert!(!self.goal(node));  // should not be goal
-        let mut res:Vec<NEHNode> = Vec::new();
+        let mut res:Vec<NEHNode> = Vec::with_capacity(node.inserted_jobs.len()+1);
         let k = node.inserted_jobs.len();  // kth job to be inserted in the partial solution
         let j = self.ordered_jobs[k];  // job to be inserted
         let m = self.inst.nb_machines();
@@ -67,14 +112,11 @@ impl TotalChildrenExpansion<NEHNode> for NEHSearch {
             }
             res.push(NEHNode { 
                 inserted_jobs: vec![j],
-                bound: bound,
+                bound,
                 idletime: None,
             })
         } else {
-            let mut eqf:EQF = compute_eqf(&self.inst, &node.inserted_jobs, j);
-            for i in 0..m {
-                eqf.q[i as usize].push(0);
-            }
+            let eqf:EQF = compute_eqf(&self.inst, &node.inserted_jobs, j);
             // try all possible insertions
             for l in 0..k+1 {  // l being the position to insert the job
                 let mut inserted = node.inserted_jobs.clone();
@@ -83,37 +125,17 @@ impl TotalChildrenExpansion<NEHNode> for NEHSearch {
                 for i in 1..m {
                     bound = max(bound, eqf.f[i as usize][l]+eqf.q[i as usize][l]);
                 }
-                let idletime = match self.tie_breaking {
-                    TiebreakingScheme::NO => None,
-                    TiebreakingScheme::FF => Some(compute_idle_time(&self.inst, &node.inserted_jobs, l, &eqf))
+                let idletime = match self.guide {
+                    Guide::Bound => None,
+                    Guide::Alpha => None,
+                    _ => Some(compute_idle_time(&self.inst, &node.inserted_jobs, l, &eqf)),
                 };
                 res.push(NEHNode {
                     inserted_jobs: inserted,
-                    bound: bound,
-                    idletime: idletime
+                    bound,
+                    idletime
                 });
             }
-            // compute the number of nodes with the same
-            // in this code, we apply the idle time computation for each node
-            // as we do not necessarily do a greedy algorithm
-            // possibly, if a greedy algorithm is performed, some computations become useless
-            // and the following commented code may be useful. 
-            // match &self.tie_breaking {
-            //     TiebreakingScheme::FF => {
-            //         let mut bestbound = res[0].bound;
-            //         let mut nb_best = 1;
-            //         for e in res.iter() {
-            //             if e.bound < bestbound {
-            //                 bestbound = e.bound;
-            //                 nb_best = 1;
-            //             } else if e.bound == bestbound {
-            //                 nb_best += 1;
-            //             }
-            //         }
-            //         println!("nb ties: {}", nb_best);
-            //     },
-            //     TiebreakingScheme::NO => {}
-            // }
         }
         return res;
     }
@@ -140,7 +162,7 @@ impl SearchTree<NEHNode, Time> for NEHSearch {
 }
 
 impl NEHSearch {
-    pub fn new(filename: &str, tb: TiebreakingScheme) -> Self {
+    pub fn new(filename: &str, tb: Guide) -> Self {
         let inst = Instance::new(&filename).unwrap();
         // sort ordered_jobs by non-increasing sum of processing times
         let n = inst.nb_jobs();
@@ -150,17 +172,26 @@ impl NEHSearch {
             ordered_jobs.push(i);
         }
         let mut sum_p = vec![0;n as usize];
-        for i in 0..n {
-            for j in 0..m {
-                sum_p[i as usize] += inst.p(i, j);
-            }
+        for i in 0..m {
+            sum_p[i as usize] = inst.sum_p(i);
         }
         ordered_jobs.sort_by_key(|a| { sum_p[*a as usize] });
+        ordered_jobs.reverse();
         // return constructed search space
         Self {
-            inst: inst,
-            ordered_jobs: ordered_jobs,
-            tie_breaking: tb,
+            inst,
+            ordered_jobs,
+            guide: tb,
         }
+    }
+
+    /**
+     * computes the percentage of completion of a node:
+     *  - the root is 0
+     *  - a goal is 1
+     *  - 0.5 indicates that there are as many jobs scheduled than unscheduled
+     */
+     fn compute_alpha(&self, node:&NEHNode) -> f64 {
+        return ( node.inserted_jobs.len() as f64 ) / ( self.inst.nb_jobs() as f64 );
     }
 }

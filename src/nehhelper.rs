@@ -1,32 +1,14 @@
 /**
  * helper functions for the NEH algorithm
  */
-use crate::pfsp::{JobId, MachineId, Instance};
+use crate::pfsp::{JobId, MachineId, Instance, Time};
 use std::cmp::max;
-
-
- /**
-  * TRANSLATION
-  **brqsortLVectorD(long int *vector, int *index, int left, int right)** -> sorting algorithm
-        - vector: vector to sort
-        - index: index[i] position of the job i in array
-        - left, right: bounds to be sorted in the array
-  **void copyIVector(int *source, int *destination, int len)** -> copy len bytes from source into destination
-  **long int lMax(long int a, long int b)** -> max(a,b)
-  **void ** dyn_mat(int rows,int cols,int size)** -> create matrix of size *cols* x *rows* where each element has *size* bytes
-  **void setval_Ivector(int * vector, int len, int val)** -> populates vector by [0,1,2, ... len-1]
-  **void setval_Lvector(long * vector, int len, long int val)** -> same for long int
-  **void setval_Lmatrix(long int ** matrix, int rows, int cols, long int val)** -> fills each matrix value by *val*
-  **int extractIVector(int * vector, int len, int pos)** -> copy first bytes of vector and put them at position pos+1
-  **void insertIVector(int *vector, int length, int value, int pos)** -> inserts an element value at first position of vector
-  **int ** loadPTimes_nrows(char *filename, int *jobs, int *machs)** -> reads job processing times
-  **void setval_Dvector(double * vector, int len, double val)** -> fills vector with value val
-  */
 
 
 /**
  * Computes job positions given a vector of job. (i.e. compute_job_position([2,0,1]) = [1,2,0])
  */
+ #[allow(dead_code)]
 pub fn compute_job_positions(joblist:Vec<JobId>) -> Vec<usize> {
       let n:usize = joblist.len();
       let mut res = vec![0; n];
@@ -53,7 +35,7 @@ pub fn compute_eqf(inst:&Instance, partial_sequence:&Vec<JobId>, next_job:JobId)
       let m:usize = inst.nb_machines() as usize;
       let k:usize = partial_sequence.len();
       let mut e = vec![vec![0;k];m as usize];
-      let mut q = vec![vec![0;k];m as usize];
+      let mut q = vec![vec![0;k+1];m as usize];
       let mut f = vec![vec![0;k+1];m as usize];
       // E COMPUTATION (earliest starting time)
       // compute earliest starting time (e)
@@ -132,6 +114,48 @@ pub fn compute_idle_time(inst:&Instance, partial_sequence:&Vec<JobId>, pos:usize
       return res;
 }
 
+
+pub struct LocalState {
+    pub s:Vec<JobId>,
+    pub v:Time
+}
+
+/**
+ * Implements an insertion neighborhood. Try to insert every task id to every other position in O(n^2)
+ * This procedure uses the taillard acceleration
+ * **inst**: instance
+ * **s**: sequence to perturbate
+ * **v**: objective value of s
+*/
+pub fn first_insertion_neighborhood(inst:&Instance, state:&LocalState) -> Option<LocalState> {
+    for i in 0..state.s.len() { // position where to remove a job
+        // create a new sub-sequence without a job
+        let mut s2:Vec<JobId> = Vec::with_capacity(state.s.len());
+        for j in 0..state.s.len() {
+            if j != i {
+                s2.push(state.s[j]);
+            }
+        }
+        let job = state.s[i];
+        // find the best possible insertion for this job
+        let eqf:EQF = compute_eqf(inst, &s2, job);
+        for l in 0..state.s.len() { // all possible new positions
+            let mut bound:Time = eqf.f[0][l] + eqf.q[0][l];
+            for i in 1..inst.nb_machines() {
+                bound = max(bound, eqf.f[i as usize][l]+eqf.q[i as usize][l]);
+            }
+            if bound < state.v { // if a better solution found, stop there
+                s2.insert(l, job);
+                return Some(LocalState {
+                    s: s2,
+                    v: bound
+                });
+            }
+        }
+        
+    }
+    return None;
+}
 
 
 /*
