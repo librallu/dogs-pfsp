@@ -84,7 +84,7 @@ pub struct FBMakespan {
 impl GuidedSpace<FBNode, OrderedFloat<f64>> for FBMakespan {
     fn guide(&mut self, node: &FBNode) -> OrderedFloat<f64> {
         match self.guide {
-            Guide::Bound => { return OrderedFloat(node.bound as f64); },
+            Guide::Bound => { return OrderedFloat(self.bound(node) as f64); },
             Guide::Idle => { return OrderedFloat(node.idletime as f64); },
             Guide::Alpha => {
                 let alpha = self.compute_alpha(node);
@@ -92,7 +92,7 @@ impl GuidedSpace<FBNode, OrderedFloat<f64>> for FBMakespan {
                 let m = self.inst.nb_machines() as f64;
                 let c = n/m;
                 return OrderedFloat(
-                    alpha*(node.bound as f64) +
+                    alpha*(self.bound(node) as f64) +
                     (1.-alpha)*c*(node.idletime as f64)
                 );
             },
@@ -102,31 +102,31 @@ impl GuidedSpace<FBNode, OrderedFloat<f64>> for FBMakespan {
                     None => { return OrderedFloat(1e31); }
                     Some(widle) => {
                         return OrderedFloat(
-                            alpha * (node.bound as f64) +
-                            (1.-alpha) * widle * (node.bound as f64)
+                            alpha * (self.bound(node) as f64) +
+                            (1.-alpha) * widle * (self.bound(node) as f64)
                         );
                     }
                 }
             },
             Guide::Gap => {
                 match self.best_val {
-                    None => { return OrderedFloat(node.bound as f64); },
+                    None => { return OrderedFloat(self.bound(node) as f64); },
                     Some(v) => {
                         match self.compute_wfront(&node) {
                             None => { return OrderedFloat(1e31); } // infinity because only one direction
                             Some(w_front_idle) => {
-                                let gap:f64 = ((v-node.bound) as f64)/(v as f64);
+                                let gap:f64 = ((v-self.bound(node)) as f64)/(v as f64);
                                 // gap close to 1 : bound tight
                                 // gap small (close to 0) : bound not very tight
                                 return OrderedFloat(
-                                    (node.bound as f64)*(1./gap) + 
+                                    (self.bound(node) as f64)*(1./gap) + 
                                     w_front_idle*gap
                                 );
                             }
                         }
                     }
                 }
-            }
+            },
         }
     }
 }
@@ -226,11 +226,11 @@ impl TotalChildrenExpansion<FBNode> for FBMakespan {
                         } else {  // break ties (compute sum of bounds and chose the largest)
                             let mut sum_forward = 0;
                             for e in res_forward.iter() {
-                                sum_forward += e.bound;
+                                sum_forward += self.bound(e);
                             }
                             let mut sum_backward = 0;
                             for e in res_backward.iter() {
-                                sum_backward += e.bound;
+                                sum_backward += self.bound(e);
                             }
                             if sum_forward >= sum_backward {
                                 res_forward
@@ -261,7 +261,7 @@ impl SearchTree<FBNode, Time> for FBMakespan {
             BranchingScheme::Forward => { (Vec::new(), Vec::new()) }
             BranchingScheme::Bidirectional(_) => { (vec![0; m],vec![0; m]) }
         };
-        FBNode {
+        let res = FBNode {
             forward_front: vec![0; m],
             backward_front,
             forward_idle: vec![0; m],
@@ -272,11 +272,12 @@ impl SearchTree<FBNode, Time> for FBMakespan {
             bound,
             idletime: 0,
             decision_tree: self.decision_tree.clone(),
-        }
+        };
+        res        
     }
 
     fn bound(&mut self, node: &FBNode) -> Time {
-        return node.bound;
+        node.bound
     }
 
     fn goal(&mut self, node: &FBNode) -> bool {
@@ -286,8 +287,9 @@ impl SearchTree<FBNode, Time> for FBMakespan {
 
 impl FBMakespan {
     pub fn new(filename: &str, guide:Guide, branchingscheme:BranchingScheme, use_ls:bool, solution_filename:Option<String>) -> Self {
+        let inst = Instance::new(&filename).unwrap();
         Self {
-            inst: Instance::new(&filename).unwrap(),
+            inst,
             best_val: None,
             nb_prunings: 0,
             guide,
@@ -298,30 +300,8 @@ impl FBMakespan {
         }
     }
     
-
-    pub fn add_job_forward(&self, node:&FBNode, j: JobId) -> FBNode {
-        let mut res = node.clone();
+    pub fn update_after_add(&self, mut res:FBNode, j:JobId) -> FBNode {
         let last_machine = self.inst.nb_machines()-1;
-        // update front
-        res.forward_front[0] += self.inst.p(j, 0);
-        for m in 1..self.inst.nb_machines() {
-            let start:Time;
-            if res.forward_front[(m-1) as usize] > res.forward_front[m as usize] {
-                start = res.forward_front[(m-1) as usize];
-                let new_idle_time = start - res.forward_front[m as usize];
-                res.forward_idle[m as usize] += new_idle_time;
-                res.idletime += new_idle_time;
-            } else {
-                start = res.forward_front[m as usize];
-            }
-            res.forward_front[m as usize] = start + self.inst.p(j,m);
-            // update remaining processing time (only for makespan)
-            res.remaining_processing_time[m as usize] -= self.inst.p(j,m);            
-        }
-        // update remaining processing time for first machine
-        res.remaining_processing_time[0] -= self.inst.p(j,0);
-        // register that the job is added
-        res.decision_tree = DecisionTree::add_child(&node.decision_tree, FBDecision::AddForward(j));
         res.added.insert(j as usize);
         res.nb_added += 1;
         // update the bound
@@ -342,6 +322,31 @@ impl FBMakespan {
         return res;
     }
 
+    pub fn add_job_forward(&self, node:&FBNode, j: JobId) -> FBNode {
+        let mut res = node.clone();
+        // update front
+        res.forward_front[0] += self.inst.p(j, 0);
+        for m in 1..self.inst.nb_machines() {
+            let start:Time;
+            if res.forward_front[(m-1) as usize] > res.forward_front[m as usize] {
+                start = res.forward_front[(m-1) as usize];
+                let new_idle_time = start - res.forward_front[m as usize];
+                res.forward_idle[m as usize] += new_idle_time;
+                res.idletime += new_idle_time;
+            } else {
+                start = res.forward_front[m as usize];
+            }
+            res.forward_front[m as usize] = start + self.inst.p(j,m);
+            // update remaining processing time
+            res.remaining_processing_time[m as usize] -= self.inst.p(j,m);            
+        }
+        // update remaining processing time for first machine
+        res.remaining_processing_time[0] -= self.inst.p(j,0);
+        // register that the job is added
+        res.decision_tree = DecisionTree::add_child(&node.decision_tree, FBDecision::AddForward(j));
+        self.update_after_add(res, j)
+    }
+
     pub fn add_job_backward(&self, node:&FBNode, j: JobId) -> FBNode {
         let mut res = node.clone();
         let last_machine = self.inst.nb_machines()-1;
@@ -360,25 +365,11 @@ impl FBMakespan {
             res.backward_front[m as usize] = start + self.inst.p(j,m);
             res.remaining_processing_time[m as usize] -= self.inst.p(j,m); // update remaining processing time
         }
-        res.remaining_processing_time[last_machine as usize] -= self.inst.p(j,last_machine); // update remaining processing time for first machine
+        // update remaining processing time for first machine
+        res.remaining_processing_time[last_machine as usize] -= self.inst.p(j,last_machine);
         // register node added
         res.decision_tree = DecisionTree::add_child(&node.decision_tree, FBDecision::AddBackward(j));
-        res.added.insert(j as usize);
-        res.nb_added += 1;
-        // update bound
-        match self.branchingscheme {
-            BranchingScheme::Forward => { panic!("adding backwards should not be done in a forward search."); },
-            BranchingScheme::Bidirectional(_) => {
-                for m in 0..self.inst.nb_machines() {
-                    res.bound = max(res.bound,
-                        res.forward_front[m as usize]+
-                        res.remaining_processing_time[m as usize]+
-                        res.backward_front[m as usize]
-                    );
-                }
-            }
-        }
-        return res;
+        self.update_after_add(res, j)
     }
 
     /**
@@ -399,7 +390,7 @@ impl FBMakespan {
                 match self.best_val {
                     None => { res.push(n); },
                     Some(v) => {
-                        if n.bound >= v {
+                        if self.bound(&n) >= v {
                             self.nb_prunings += 1;
                         } else {
                             res.push(n);
@@ -419,7 +410,7 @@ impl FBMakespan {
                 match self.best_val {
                     None => { res.push(n); },
                     Some(v) => {
-                        if n.bound >= v {
+                        if self.bound(&n) >= v {
                             self.nb_prunings += 1;
                         } else {
                             res.push(n);

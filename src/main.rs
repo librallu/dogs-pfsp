@@ -16,12 +16,14 @@ use dogs::searchspace::{SearchSpace,GuidedSpace,SearchTree,TotalChildrenExpansio
 use dogs::treesearch::algo::beamsearch::create_iterative_beam_search;
 use dogs::treesearch::decorators::pruning::PruningDecorator;
 use dogs::treesearch::decorators::stats::StatTsDecorator;
+use dogs::treesearch::decorators::bounding::BoundingDecorator;
 
 mod pfsp;
 mod fflowtime;
 mod fbmakespan;
 mod nehhelper;
 mod nehmakespan;
+// mod expandmakespan;
 
 fn run_search_tree<T,N,Sol>(space:T, t:f32, perf_file: Option<String>, inst_name: &str, algo_name:String) where
 T:SearchSpace<N,Sol>+GuidedSpace<N,OrderedFloat<f64>>+SearchTree<N,pfsp::Time>+TotalChildrenExpansion<N>,
@@ -31,7 +33,11 @@ N:Clone {
     let stopping_criterion = TimeStoppingCriterion::new(t);
     // create search space
     let space = Rc::new(RefCell::new(
-        StatTsDecorator::new(space)
+        StatTsDecorator::new(
+            BoundingDecorator::new(
+                space
+            ).bind_logger(Rc::downgrade(&logger))
+        )
         .bind_logger(Rc::downgrade(&logger)),
     ));
     // create the search algorithm

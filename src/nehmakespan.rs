@@ -17,7 +17,10 @@ pub enum Guide {
 #[derive(Debug, Clone)]
 pub struct NEHNode {
     inserted_jobs: Vec<JobId>, // already inserted jobs (partial sequence)
+    /// bound on already inserted jobs
     bound: Time,
+    /// bound on remaining jobs
+    bound_remaining: Time,
     idletime: Option<i64>,  // optionnal idle time of the node (used in tie breaking for instance)
 }
 
@@ -69,6 +72,7 @@ impl SearchSpace<NEHNode, Vec<JobId>> for NEHSearch {
         NEHNode {
             inserted_jobs: local_state.s, // already inserted jobs (partial sequence)
             bound: local_state.v,
+            bound_remaining: 0,
             idletime: None,
         }
     }
@@ -79,18 +83,22 @@ impl GuidedSpace<NEHNode, OrderedFloat<f64>> for NEHSearch {
     fn guide(&mut self, node: &NEHNode) -> OrderedFloat<f64> {
         // let alpha:f64 = (node.inserted_jobs.len() as f64)/(self.inst.nb_jobs() as f64);
         match self.guide {
-            Guide::Bound => OrderedFloat(node.bound as f64),
+            Guide::Bound => OrderedFloat((node.bound+node.bound_remaining) as f64),
             Guide::FF => match node.idletime {
-                None => OrderedFloat(node.bound as f64),
-                Some(v) => OrderedFloat((node.bound as f64)-1./(v as f64))
+                None => OrderedFloat((node.bound+node.bound_remaining) as f64),
+                Some(v) => OrderedFloat(((node.bound+node.bound_remaining) as f64)-1./(v as f64))
             }
             Guide::Alpha => {
-                let alpha = self.compute_alpha(node);
-                let tmp:f64 = 10.;
-                OrderedFloat(
-                    alpha*node.bound as f64 +
-                    (1.-alpha)*tmp
-                )
+                match node.idletime {
+                    None => OrderedFloat((node.bound+node.bound_remaining) as f64),
+                    Some(v) => {
+                        let alpha = self.compute_alpha(node);
+                        OrderedFloat(
+                            alpha * (node.bound+node.bound_remaining) as f64 +
+                            (1.-alpha) * v as f64
+                        )
+                    }
+                }
             }
         }
     }
@@ -104,6 +112,12 @@ impl TotalChildrenExpansion<NEHNode> for NEHSearch {
         let k = node.inserted_jobs.len();  // kth job to be inserted in the partial solution
         let j = self.ordered_jobs[k];  // job to be inserted
         let m = self.inst.nb_machines();
+        let mut new_bound_remaining = node.bound_remaining;
+        if self.inst.better_on_first_machine(j) {
+            new_bound_remaining -= self.inst.p(j,0);
+        } else {
+            new_bound_remaining -= self.inst.p(j, m-1);
+        }
         if node.inserted_jobs.is_empty() {
             // if first job, just insert the first job in the ordered list
             let mut bound = 0;
@@ -113,6 +127,7 @@ impl TotalChildrenExpansion<NEHNode> for NEHSearch {
             res.push(NEHNode { 
                 inserted_jobs: vec![j],
                 bound,
+                bound_remaining: new_bound_remaining,
                 idletime: None,
             })
         } else {
@@ -127,12 +142,12 @@ impl TotalChildrenExpansion<NEHNode> for NEHSearch {
                 }
                 let idletime = match self.guide {
                     Guide::Bound => None,
-                    Guide::Alpha => None,
                     _ => Some(compute_idle_time(&self.inst, &node.inserted_jobs, l, &eqf)),
                 };
                 res.push(NEHNode {
                     inserted_jobs: inserted,
                     bound,
+                    bound_remaining: new_bound_remaining,
                     idletime
                 });
             }
@@ -147,12 +162,13 @@ impl SearchTree<NEHNode, Time> for NEHSearch {
         return NEHNode {
             inserted_jobs: Vec::new(),
             bound: 0,
+            bound_remaining: self.inst.sum_better_first_machine()+self.inst.sum_better_last_machine(),
             idletime: None,
         };
     }
 
     fn bound(&mut self, node: &NEHNode) -> Time {
-        return node.bound;
+        return node.bound+node.bound_remaining;
     }
 
     fn goal(&mut self, node: &NEHNode) -> bool {
