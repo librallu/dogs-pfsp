@@ -4,9 +4,11 @@ use std::cmp::max;
 use std::fs::File;
 use std::io::Write;
 use std::rc::Rc;
+use std::cell::RefCell;
 
 use dogs::searchspace::{SearchSpace, SearchTree, TotalChildrenExpansion, GuidedSpace};
 use dogs::datastructures::decisiontree::DecisionTree;
+use dogs::datastructures::lazyclonable::LazyClonable;
 
 use crate::pfsp::{JobId, MachineId, Time, Instance};
 use crate::nehhelper::{LocalState, first_insertion_neighborhood};
@@ -53,7 +55,11 @@ pub enum BranchingScheme {
     Bidirectional(BidirectionalScheme), 
 }
 
-
+/**
+    TODO: struct that stores every vector by one with enum
+    Vec<MachineInfo> machine_info
+    where MachineInfo {forward_front, backward_front, forward_idle, backward_idle, remaining }
+ */
 #[derive(Debug, Clone)]
 pub struct FBNodeLazyPart {
     /// for each machine, its first forward availability
@@ -75,7 +81,7 @@ pub struct FBNodeLazyPart {
 #[derive(Debug, Clone)]
 pub struct FBNode {
     /// part of the node that can be computed after
-    lazy_part: Option<FBNodeLazyPart>,
+    lazy_part: LazyClonable<RefCell<FBNodeLazyPart>>,
     /// bound evaluation
     bound: Time,
     /// guide evaluation
@@ -186,7 +192,7 @@ impl TotalChildrenExpansion<FBNode> for FBMakespan {
     */
     fn children(&mut self, node: &mut FBNode) -> Vec<FBNode> {
         // self.compute_lazy_part(node);  // to do later
-        let mut res:Vec<FBNode>;
+        let res:Vec<FBNode>;
         match &self.branchingscheme {
             BranchingScheme::Forward => {
                 res = self.generate_nodes(node, true);
@@ -226,10 +232,6 @@ impl TotalChildrenExpansion<FBNode> for FBMakespan {
                 }
             }
         }
-        // compute lazy part for all children (could be computed later, but requires additional work)
-        for e in res.iter_mut() {
-            self.compute_lazy_part(e, node);
-        }
         res
     }
 }
@@ -251,7 +253,7 @@ impl SearchTree<FBNode, Time> for FBMakespan {
             BranchingScheme::Bidirectional(_) => { (vec![0; m], vec![0; m]) }
         };
         let res = FBNode {
-            lazy_part: Some(FBNodeLazyPart {
+            lazy_part: LazyClonable::new(RefCell::new(FBNodeLazyPart {
                 forward_front: vec![0; m],
                 backward_front,
                 forward_idle: vec![0; m],
@@ -259,7 +261,7 @@ impl SearchTree<FBNode, Time> for FBMakespan {
                 remaining_processing_time: sum_p,
                 added: BitSet::new(),
                 idletime: 0,
-            }),
+            })),
             nb_added: 0,
             bound,
             guide: OrderedFloat(0.),
@@ -294,13 +296,14 @@ impl FBMakespan {
         }
     }
 
-    fn compute_lazy_part(&self, node:&mut FBNode, parent:&mut FBNode) {
-        match node.lazy_part {
-            Some(_) => {}  // already computed, do nothing
-            None => {
+    fn compute_lazy_part(&self, node:&mut FBNode) {
+        match node.lazy_part.is_cloned() {
+            true => {}  // already computed, do nothing
+            false => {
                 // otherwise, compute the lazy part
                 let last_machine = self.inst.nb_machines()-1;
-                let mut res:FBNodeLazyPart = parent.lazy_part.clone().unwrap();
+                let node_lazypart:Rc<RefCell<FBNodeLazyPart>> = node.lazy_part.lazyget();
+                let mut res = node_lazypart.as_ref().borrow_mut();
                 // update fronts
                 match node.decision_tree.d {
                     FBDecision::None => {},
@@ -345,7 +348,6 @@ impl FBMakespan {
                         res.added.insert(j as usize);
                     }
                 }
-                node.lazy_part = Some(res);
             }
         }
     }
@@ -360,16 +362,12 @@ impl FBMakespan {
         return ( node.nb_added as f64 ) / ( self.inst.nb_jobs() as f64 );
     }
 
-    /**
-    * we assume that the lazy part of the node is already computed
-    */
-    fn generate_nodes(&mut self, node:&FBNode, generate_forward:bool) -> Vec<FBNode> {
+    fn generate_nodes(&mut self, node:&mut FBNode, generate_forward:bool) -> Vec<FBNode> {
+        self.compute_lazy_part(node);  // make sure the lazy part is computed
         let mut res:Vec<FBNode> = Vec::with_capacity(self.inst.nb_jobs() as usize - node.nb_added);
+        let node_lazypart = node.lazy_part.lazyget();
+        let lazy_part = node_lazypart.as_ref().borrow();
         for j in 0..self.inst.nb_jobs() {
-            let lazy_part:&FBNodeLazyPart = match &node.lazy_part {
-                Some(e) => e,
-                None => panic!("generate_nodes: lazy part not computed")
-            };
             if !lazy_part.added.contains(j as usize) {
                 let n:FBNode = self.create_child(node, j, generate_forward);
                 match self.best_val {
@@ -387,14 +385,11 @@ impl FBMakespan {
         res
     }
 
-    /**
-    * we assume that the lazy part of the node is already computed
-    */
-    fn create_child(&self, node:&FBNode, j:JobId, generate_forward:bool) -> FBNode {
-        let lazy_part:&FBNodeLazyPart = match &node.lazy_part {
-            Some(e) => e,
-            None => panic!("generate_nodes: lazy part not computed")
-        };
+    fn create_child(&self, node:&mut FBNode, j:JobId, generate_forward:bool) -> FBNode {
+        self.compute_lazy_part(node);  // make sure the lazy part is computed
+        // let mut res:Vec<FBNode> = Vec::with_capacity(self.inst.nb_jobs() as usize - node.nb_added);
+        let node_lazypart = node.lazy_part.lazyget();
+        let lazy_part = node_lazypart.as_ref().borrow();
         let mut bound = node.bound;
         let mut new_idle = 0;
         let m = self.inst.nb_machines();
@@ -435,7 +430,7 @@ impl FBMakespan {
             false => (node.forward_walpha, Some(new_walpha))
         };
         let mut res = FBNode {
-            lazy_part: None,
+            lazy_part: node.lazy_part.clone(),
             bound,
             guide: OrderedFloat(0.),
             nb_added: node.nb_added+1,
@@ -501,187 +496,8 @@ impl FBMakespan {
                     }
                 }
             }
-            // _ => { panic!("not implemented"); }
         };
         res
     }
-
-
-    // fn generate_forward_nodes(&mut self, node:&FBNode) -> Vec<FBNode> {
-    //     let mut res = Vec::with_capacity(self.inst.nb_jobs() as usize - node.nb_added);
-    //     for j in 0..self.inst.nb_jobs() {
-    //         if !node.lazy_part.unwrap().added.contains(j as usize) {
-    //             let n = self.add_job_forward(node, j);
-    //             match self.best_val {
-    //                 None => { res.push(n); },
-    //                 Some(v) => {
-    //                     if self.bound(&n) >= v {
-    //                         self.nb_prunings += 1;
-    //                     } else {
-    //                         res.push(n);
-    //                     }
-    //                 }
-    //             }
-    //         }
-    //     }
-    //     return res;
-    // }
-
-    // fn generate_backward_nodes(&mut self, node:&FBNode) -> Vec<FBNode> {
-    //     let mut res = Vec::with_capacity(self.inst.nb_jobs() as usize - node.nb_added);
-    //     for j in 0..self.inst.nb_jobs() {
-    //         if !node.lazy_part.unwrap().added.contains(j as usize) {
-    //             let n = self.add_job_backward(node, j);
-    //             match self.best_val {
-    //                 None => { res.push(n); },
-    //                 Some(v) => {
-    //                     if self.bound(&n) >= v {
-    //                         self.nb_prunings += 1;
-    //                     } else {
-    //                         res.push(n);
-    //                     }
-    //                 }
-    //             }
-    //         }
-    //     }
-    //     return res;
-    // }
-
-    // fn compute_wfront(&self, node:&FBNode) -> Option<f64> {
-    //     let mut wsum_idle = 0.;
-    //     for i in 1..self.inst.nb_machines() {
-    //         if node.forward_front[i as usize] == 0 {
-    //             return None;
-    //         }
-    //         wsum_idle += (node.forward_idle[i as usize] as f64) / (node.forward_front[i as usize] as f64);
-    //     }
-    //     for i in 0..self.inst.nb_machines()-1 {
-    //         if node.backward_front[i as usize] == 0 {
-    //             return None;
-    //         }
-    //         wsum_idle += (node.backward_idle[i as usize] as f64) / (node.backward_front[i as usize] as f64);
-    //     }
-    //     return Some(wsum_idle);
-    // }
-
-
-        // pub fn update_after_add(&self, mut res:FBNode, j:JobId) -> FBNode {
-    //     let last_machine = self.inst.nb_machines()-1;
-    //     res.lazy_part.unwrap().added.insert(j as usize);
-    //     res.nb_added += 1;
-    //     // update the bound
-    //     match &self.branchingscheme {
-    //         BranchingScheme::Forward => {
-    //             res.bound = res.forward_front[last_machine as usize] + res.remaining_processing_time[last_machine as usize];
-    //         },
-    //         BranchingScheme::Bidirectional(_) => {
-    //             for m in 0..self.inst.nb_machines() {
-    //                 res.bound = max(res.bound, 
-    //                     res.forward_front[m as usize]+
-    //                     res.remaining_processing_time[m as usize]+
-    //                     res.backward_front[m as usize]
-    //                 );
-    //             }
-    //         }
-    //     }
-    //     return res;
-    // }
-
-    // pub fn add_job_forward(&self, node:&FBNode, j: JobId) -> FBNode {
-    //     let mut res = node.clone();
-    //     // update front
-    //     res.forward_front[0] += self.inst.p(j, 0);
-    //     for m in 1..self.inst.nb_machines() {
-    //         let start:Time;
-    //         if res.forward_front[(m-1) as usize] > res.forward_front[m as usize] {
-    //             start = res.forward_front[(m-1) as usize];
-    //             let new_idle_time = start - res.forward_front[m as usize];
-    //             res.forward_idle[m as usize] += new_idle_time;
-    //             res.idletime += new_idle_time;
-    //         } else {
-    //             start = res.forward_front[m as usize];
-    //         }
-    //         res.forward_front[m as usize] = start + self.inst.p(j,m);
-    //         // update remaining processing time
-    //         res.remaining_processing_time[m as usize] -= self.inst.p(j,m);            
-    //     }
-    //     // update remaining processing time for first machine
-    //     res.remaining_processing_time[0] -= self.inst.p(j,0);
-    //     // register that the job is added
-    //     res.decision_tree = DecisionTree::add_child(&node.decision_tree, FBDecision::AddForward(j));
-    //     self.update_after_add(res, j)
-    // }
-
-    // pub fn add_job_backward(&self, node:&FBNode, j: JobId) -> FBNode {
-    //     let mut res = node.clone();
-    //     let last_machine = self.inst.nb_machines()-1;
-    //     // update front
-    //     res.backward_front[last_machine as usize] += self.inst.p(j, last_machine);
-    //     for m in (0..last_machine).rev() {
-    //         let start:Time;
-    //         if res.backward_front[(m+1) as usize] > res.backward_front[m as usize] {
-    //             start = res.backward_front[(m+1) as usize];
-    //             let new_idle_time = res.backward_front[(m+1) as usize] - res.backward_front[m as usize];
-    //             res.backward_idle[m as usize] += new_idle_time;
-    //             res.idletime += new_idle_time;
-    //         } else {
-    //             start = res.backward_front[m as usize];
-    //         }
-    //         res.backward_front[m as usize] = start + self.inst.p(j,m);
-    //         res.remaining_processing_time[m as usize] -= self.inst.p(j,m); // update remaining processing time
-    //     }
-    //     // update remaining processing time for first machine
-    //     res.remaining_processing_time[last_machine as usize] -= self.inst.p(j,last_machine);
-    //     // register node added
-    //     res.decision_tree = DecisionTree::add_child(&node.decision_tree, FBDecision::AddBackward(j));
-    //     self.update_after_add(res, j)
-    // }
-
-
-        // match self.guide {
-        //     Guide::Bound => { return OrderedFloat(self.bound(node) as f64); },
-        //     Guide::Idle => { return OrderedFloat(node.idletime as f64); },
-        //     Guide::Alpha => {
-        //         let alpha = self.compute_alpha(node);
-        //         let n = node.nb_added as f64;
-        //         let m = self.inst.nb_machines() as f64;
-        //         let c = n/m;
-        //         return OrderedFloat(
-        //             alpha*(self.bound(node) as f64) +
-        //             (1.-alpha)*c*(node.idletime as f64)
-        //         );
-        //     },
-        //     Guide::Walpha => {
-        //         let alpha = self.compute_alpha(node);
-        //         match self.compute_wfront(&node) {
-        //             None => { return OrderedFloat(1e31); }
-        //             Some(widle) => {
-        //                 return OrderedFloat(
-        //                     alpha * (self.bound(node) as f64) +
-        //                     (1.-alpha) * widle * (self.bound(node) as f64)
-        //                 );
-        //             }
-        //         }
-        //     },
-        //     Guide::Gap => {
-        //         match self.best_val {
-        //             None => { return OrderedFloat(self.bound(node) as f64); },
-        //             Some(v) => {
-        //                 match self.compute_wfront(&node) {
-        //                     None => { return OrderedFloat(1e31); } // infinity because only one direction
-        //                     Some(w_front_idle) => {
-        //                         let gap:f64 = ((v-self.bound(node)) as f64)/(v as f64);
-        //                         // gap close to 1 : bound tight
-        //                         // gap small (close to 0) : bound not very tight
-        //                         return OrderedFloat(
-        //                             (self.bound(node) as f64)*(1./gap) + 
-        //                             w_front_idle*gap
-        //                         );
-        //                     }
-        //                 }
-        //             }
-        //         }
-        //     },
-        // }
 }
 
