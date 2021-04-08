@@ -34,9 +34,9 @@ N:Clone {
     // create search space
     let space = Rc::new(RefCell::new(
         StatTsDecorator::new(
-            BoundingDecorator::new(
+            // BoundingDecorator::new(
                 space
-            ).bind_logger(Rc::downgrade(&logger))
+            // ).bind_logger(Rc::downgrade(&logger))
         )
         .bind_logger(Rc::downgrade(&logger)),
     ));
