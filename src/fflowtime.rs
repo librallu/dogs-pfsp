@@ -3,11 +3,14 @@ use ordered_float::OrderedFloat;
 use std::{fmt::Debug, fs::File};
 use std::io::Write;
 use std::rc::Rc;
+use std::cell::RefCell;
+use std::cmp::max;
 
 use dogs::searchspace::{SearchSpace, SearchTree, TotalChildrenExpansion, GuidedSpace};
 use dogs::datastructures::decisiontree::DecisionTree;
+use dogs::datastructures::lazyclonable::LazyClonable;
 
-use crate::pfsp::{JobId, MachineId, Time, Instance};
+use crate::pfsp::{JobId, Time, Instance};
 
 pub type NodeVec = Vec<Time>;
 
@@ -32,25 +35,27 @@ pub enum Decision {
 }
 
 #[derive(Debug, Clone)]
-pub struct Node {
+pub struct NodeLazyPart {
     /// for each machine, its first forward availability
     forward_front: NodeVec,
-    /// forward idle time for each machine
-    forward_idle: NodeVec,
-    /// nb jobs added
-    nb_added: usize,
     /// subset of added jobs
     added: BitSet,
+}
+
+#[derive(Debug, Clone)]
+pub struct Node {
+    /// nb jobs added
+    nb_added: usize,
     /// prefix bound evaluation
     bound: Time,
-    /// strong bound evaluation
-    strong_bound: Time,
     /// total idle time of the given node
     idletime: Time,
     /// weighted idle time
     weightedidle: f64,
     /// decision tree telling which choice have been done so far
     decision_tree: Rc<DecisionTree<Decision>>,
+    /// lazy part of the node
+    lazy_part: LazyClonable<RefCell<NodeLazyPart>>,
 }
 
 #[derive(Debug)]
@@ -136,9 +141,12 @@ impl SearchSpace<Node, Vec<JobId>> for ForwardSearch {
 
 impl TotalChildrenExpansion<Node> for ForwardSearch {
     fn children(&mut self, node: &mut Node) -> Vec<Node> {
+        self.compute_lazy_part(node);  // make sure the lazy part is computed
+        let node_lazypart = node.lazy_part.lazyget();
+        let lazy_part = node_lazypart.as_ref().borrow();
         let mut res = Vec::with_capacity(self.inst.nb_jobs() as usize - node.nb_added);
         for j in 0..self.inst.nb_jobs() {
-            if !node.added.contains(j as usize) {
+            if !lazy_part.added.contains(j as usize) {
                 res.push(self.add_job_forward(node, j));
             }
         }
@@ -152,15 +160,15 @@ impl SearchTree<Node, Time> for ForwardSearch {
     fn root(&mut self) -> Node {
         let m = self.inst.nb_machines() as usize;
         Node {
-            forward_front: vec![0; m],
-            forward_idle: vec![0; m],
             nb_added: 0,
-            added: BitSet::new(),
-            strong_bound: self.inst.sum_p((m-1) as MachineId),
             bound: 0,
             idletime: 0,
             weightedidle: 0.,
             decision_tree: self.decision_tree.clone(),
+            lazy_part: LazyClonable::new(RefCell::new(NodeLazyPart {
+                forward_front: vec![0; m],
+                added: BitSet::new(),
+            })),
         }
     }
 
@@ -182,35 +190,52 @@ impl ForwardSearch {
             decision_tree: DecisionTree::new(Decision::None),
         }
     }
+
+
+    pub fn compute_lazy_part(&self, node:&mut Node) {
+        match node.lazy_part.is_cloned() {
+            true => {}  // already computed, do nothing
+            false => {
+                let node_lazypart:Rc<RefCell<NodeLazyPart>> = node.lazy_part.lazyget();
+                let mut res = node_lazypart.as_ref().borrow_mut();
+                match node.decision_tree.d {
+                    Decision::None => {},
+                    Decision::AddForwardSearch(j) => {
+                        res.added.insert(j as usize);
+                        res.forward_front[0] += self.inst.p(j,0);
+                        for m in 1..self.inst.nb_machines() {
+                            let start = max(
+                                res.forward_front[m as usize - 1],
+                                res.forward_front[m as usize]
+                            );
+                            res.forward_front[m as usize] = start + self.inst.p(j, m);
+                        }
+                    }
+                }
+            }
+        }
+    }
     
 
-    pub fn add_job_forward(&self, node:&Node, j: JobId) -> Node {
+    pub fn add_job_forward(&self, node:&mut Node, j: JobId) -> Node {
+        self.compute_lazy_part(node);  // make sure the lazy part is computed
+        let node_lazypart = node.lazy_part.lazyget();
+        let lazy_part = node_lazypart.as_ref().borrow();
         let mut res = node.clone();
         let alpha = self.compute_alpha(node)+1.;
         // update front & idle time
-        // let n = node.nb_added as f64 + 1.;
-        res.forward_front[0] += self.inst.p(j, 0);
+        let mut front = lazy_part.forward_front[0] + self.inst.p(j,0);
         for m in 1..self.inst.nb_machines() {
-            let start:Time;
-            if res.forward_front[(m-1) as usize] > res.forward_front[m as usize] {
-                start = res.forward_front[(m-1) as usize];
-                let new_idle_time = start - res.forward_front[m as usize];
-                res.forward_idle[m as usize] += new_idle_time;
-                res.idletime += new_idle_time;
-                res.weightedidle += new_idle_time as f64 * (alpha*(self.inst.nb_machines()-m) as f64);
-                // res.weightedidle += new_idle_time as f64 * (1./m as f64);
-            } else {
-                start = res.forward_front[m as usize];
-            }
-            res.forward_front[m as usize] = start + self.inst.p(j,m);
+            let p = self.inst.p(j, m);
+            let start = max(front, lazy_part.forward_front[m as usize]);
+            let current_idle = max(0, start - lazy_part.forward_front[m as usize]);
+            res.idletime += current_idle;
+            res.weightedidle += current_idle as f64 * (alpha*(self.inst.nb_machines()-m) as f64);
+            front = start + p;
         }
-        // register that the job is added
         res.decision_tree = DecisionTree::add_child(&node.decision_tree, Decision::AddForwardSearch(j));
-        res.added.insert(j as usize);
         res.nb_added += 1;
-        // update the bound
-        let lastmachineid = (self.inst.nb_machines()-1) as usize;
-        res.bound += res.forward_front[lastmachineid];
+        res.bound += front;
         return res;
     }
 

@@ -146,7 +146,6 @@ impl SearchSpace<FBNode, Vec<JobId>> for FBMakespan {
                 match first_insertion_neighborhood(&self.inst, &local_state) {
                     None => { break; },
                     Some(e) => {
-                        // println!("{} \t -> \t {}", local_state.v, e.v);
                         local_state = e;
                     }
                 }
