@@ -16,7 +16,7 @@ use dogs::searchspace::{SearchSpace,GuidedSpace,SearchTree,TotalChildrenExpansio
 use dogs::treesearch::algo::beamsearch::create_iterative_beam_search;
 use dogs::treesearch::decorators::pruning::PruningDecorator;
 use dogs::treesearch::decorators::stats::StatTsDecorator;
-use dogs::treesearch::decorators::bounding::BoundingDecorator;
+// use dogs::treesearch::decorators::bounding::BoundingDecorator;
 
 mod pfsp;
 mod fflowtime;
@@ -100,7 +100,7 @@ fn main() {
             Arg::with_name("perf")
                 .short("p")
                 .value_name("SOLUTION_FILE")
-                .help("where to print the best solution found")
+                .help("where to print the performance statistics")
         )
         .subcommand(
             SubCommand::with_name("f_flowtime")
@@ -219,6 +219,7 @@ fn main() {
             "alpha" =>  fbmakespan::Guide::Alpha,
             "walpha" => fbmakespan::Guide::Walpha,
             "gap" => fbmakespan::Guide::Gap,
+            "combined" => fbmakespan::Guide::Combined,
             _ => {
                 panic!("unknown guide (possible values: [bound, idle, alpha, walpha, gap]")
             }

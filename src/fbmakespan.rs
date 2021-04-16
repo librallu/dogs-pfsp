@@ -23,6 +23,7 @@ pub enum Guide {
     Alpha, // alpha
     Walpha,  // wfrontalpha
     Gap, // gap
+    Combined, // wfrontalpha + gap 
 }
 
 /**
@@ -106,6 +107,7 @@ pub struct FBMakespan {
     solution_file: Option<String>, // if it exists, the path to file where the solution will be contained
     use_ls: bool, // if true, use local search to improve found solutions
     decision_tree: Rc<DecisionTree<FBDecision>>,
+    current_iter: usize,
 }
 
 
@@ -181,6 +183,10 @@ impl SearchSpace<FBNode, Vec<JobId>> for FBMakespan {
     fn display_statistics(&self) {
         println!();
         println!("{:>25}{:>15}", "nb pruned", self.nb_prunings);
+    }
+
+    fn restart(&mut self, _msg: String) {
+        self.current_iter += 1;
     }
 }
 
@@ -292,6 +298,7 @@ impl FBMakespan {
             solution_file: solution_filename,
             use_ls,
             decision_tree: DecisionTree::new(FBDecision::None),
+            current_iter: 0,
         }
     }
 
@@ -455,48 +462,64 @@ impl FBMakespan {
                 )
             }
             Guide::Walpha  => {
-                match res.forward_walpha {
+                self.create_walpha_guide(&res)
+            }
+            Guide::Gap => {
+                self.create_gap_guide(&res)
+            }
+            Guide::Combined => {
+                if self.current_iter % 2 == 0 {
+                    self.create_walpha_guide(&res)
+                } else {
+                    self.create_gap_guide(&res)
+                    // OrderedFloat(res.bound as f64)
+                }
+            }
+        };
+        res
+    }
+
+    fn create_walpha_guide(&self, res:&FBNode) -> OrderedFloat<f64> {
+        match res.forward_walpha {
+            None => OrderedFloat(1e31),
+            Some(wf) => {
+                match res.backward_walpha {
                     None => OrderedFloat(1e31),
+                    Some(wb) => {
+                        let alpha = self.compute_alpha(&res);
+                        OrderedFloat(
+                            alpha      * (res.bound as f64) +
+                            (1.-alpha) * (wf + wb) * (res.bound as f64)
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    fn create_gap_guide(&self, res:&FBNode) -> OrderedFloat<f64> {
+        match self.best_val {
+            None => { OrderedFloat(res.bound as f64) },
+            Some(v) => {
+                match res.forward_walpha {
+                    None => OrderedFloat(res.bound as f64), //OrderedFloat(1e31),
                     Some(wf) => {
                         match res.backward_walpha {
-                            None => OrderedFloat(1e31),
+                            None => OrderedFloat(res.bound as f64), //OrderedFloat(1e31),
                             Some(wb) => {
-                                let alpha = self.compute_alpha(&res);
+                                let gap:f64 = ((v-res.bound) as f64)/(v as f64);
+                                // gap close to 1 : bound tight
+                                // gap small (close to 0) : bound not very tight
                                 OrderedFloat(
-                                    alpha      * (bound as f64) +
-                                    (1.-alpha) * (wf + wb) * (bound as f64)
+                                    (res.bound as f64)*(1./gap) + 
+                                    (wf+wb)*gap
                                 )
                             }
                         }
                     }
                 }
             }
-            Guide::Gap => {
-                match self.best_val {
-                    None => { OrderedFloat(bound as f64) },
-                    Some(v) => {
-                        match res.forward_walpha {
-                            None => OrderedFloat(1e31),
-                            Some(wf) => {
-                                match res.backward_walpha {
-                                    None => OrderedFloat(1e31),
-                                    Some(wb) => {
-                                        let gap:f64 = ((v-bound) as f64)/(v as f64);
-                                        // gap close to 1 : bound tight
-                                        // gap small (close to 0) : bound not very tight
-                                        OrderedFloat(
-                                            (bound as f64)*(1./gap) + 
-                                            (wf+wb)*gap
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        };
-        res
+        }
     }
 }
 
