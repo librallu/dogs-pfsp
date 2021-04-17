@@ -253,10 +253,7 @@ impl SearchTree<FBNode, Time> for FBMakespan {
             sum_p[i as usize] = self.inst.sum_p(i as MachineId);
             bound = max(bound, sum_p[i as usize]);
         }
-        let (backward_front,backward_idle) = match self.branchingscheme {
-            BranchingScheme::Forward          => { (Vec::new(), Vec::new()) }
-            BranchingScheme::Bidirectional(_) => { (vec![0; m], vec![0; m]) }
-        };
+        let (backward_front,backward_idle) = (vec![0; m], vec![0; m]);
         let res = FBNode {
             lazy_part: LazyClonable::new(RefCell::new(FBNodeLazyPart {
                 forward_front: vec![0; m],

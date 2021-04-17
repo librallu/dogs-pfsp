@@ -1,0 +1,13 @@
+../dogs/scripts/runForInstances.py insts/taillard_makespan.csv insts/ 'tsp ./target/release/dogs-pfsp -p "results/f_makespan_bound/#N.json" -s "results/f_makespan_bound/#N.sol" -i "insts/#P" -t #T fb_makespan -g bound -b forward'
+../dogs/scripts/runForInstances.py insts/taillard_makespan.csv insts/ 'tsp ./target/release/dogs-pfsp -p "results/f_makespan_idle/#N.json" -s "results/f_makespan_idle/#N.sol" -i "insts/#P" -t #T fb_makespan -g idle -b forward'
+../dogs/scripts/runForInstances.py insts/taillard_makespan.csv insts/ 'tsp ./target/release/dogs-pfsp -p "results/f_makespan_alpha/#N.json" -s "results/f_makespan_alpha/#N.sol" -i "insts/#P" -t #T fb_makespan -g alpha -b forward'
+../dogs/scripts/runForInstances.py insts/taillard_makespan.csv insts/ 'tsp ./target/release/dogs-pfsp -p "results/f_makespan_walpha/#N.json" -s "results/f_makespan_walpha/#N.sol" -i "insts/#P" -t #T fb_makespan -g walpha -b forward'
+../dogs/scripts/runForInstances.py insts/taillard_makespan.csv insts/ 'tsp ./target/release/dogs-pfsp -p "results/f_makespan_gap/#N.json" -s "results/f_makespan_gap/#N.sol" -i "insts/#P" -t #T fb_makespan -g gap -b forward'
+
+../dogs/scripts/runForInstances.py insts/taillard_makespan.csv insts/ 'tsp ./target/release/dogs-pfsp -p "results/fb_makespan_bound/#N.json" -s "results/fb_makespan_bound/#N.sol" -i "insts/#P" -t #T fb_makespan -g bound -b bi_min'
+../dogs/scripts/runForInstances.py insts/taillard_makespan.csv insts/ 'tsp ./target/release/dogs-pfsp -p "results/fb_makespan_idle/#N.json" -s "results/fb_makespan_idle/#N.sol" -i "insts/#P" -t #T fb_makespan -g idle -b bi_min'
+../dogs/scripts/runForInstances.py insts/taillard_makespan.csv insts/ 'tsp ./target/release/dogs-pfsp -p "results/fb_makespan_alpha/#N.json" -s "results/fb_makespan_alpha/#N.sol" -i "insts/#P" -t #T fb_makespan -g alpha -b bi_min'
+../dogs/scripts/runForInstances.py insts/taillard_makespan.csv insts/ 'tsp ./target/release/dogs-pfsp -p "results/fb_makespan_walpha/#N.json" -s "results/fb_makespan_walpha/#N.sol" -i "insts/#P" -t #T fb_makespan -g walpha -b bi_min'
+../dogs/scripts/runForInstances.py insts/taillard_makespan.csv insts/ 'tsp ./target/release/dogs-pfsp -p "results/fb_makespan_gap/#N.json" -s "results/fb_makespan_gap/#N.sol" -i "insts/#P" -t #T fb_makespan -g gap -b bi_min'
+
+../dogs/scripts/runForInstances.py insts/taillard_makespan.csv insts/ 'tsp ./target/release/dogs-pfsp -p "results/fb_makespan_combined/#N.json" -s "results/fb_makespan_combined/#N.sol" -i "insts/#P" -t #T fb_makespan -g combined -b bi_min -l'
