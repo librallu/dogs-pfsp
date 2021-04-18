@@ -499,10 +499,16 @@ impl FBMakespan {
             None => { OrderedFloat(res.bound as f64) },
             Some(v) => {
                 match res.forward_walpha {
-                    None => OrderedFloat(res.bound as f64), //OrderedFloat(1e31),
+                    None => {
+                        // OrderedFloat(res.bound as f64)
+                        OrderedFloat(1e31)
+                    }
                     Some(wf) => {
                         match res.backward_walpha {
-                            None => OrderedFloat(res.bound as f64), //OrderedFloat(1e31),
+                            None => {
+                                // OrderedFloat(res.bound as f64)
+                                OrderedFloat(1e31)
+                            }
                             Some(wb) => {
                                 let gap:f64 = ((v-res.bound) as f64)/(v as f64);
                                 // gap close to 1 : bound tight
