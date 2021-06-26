@@ -12,6 +12,8 @@ pub struct Instance {
     name: String,
     n: JobId,
     m: MachineId,
+    /// nb_jobs / nb_machines
+    job_machine_ratio: f64,
     /// processing time of job i on machine j
     p: Vec<Vec<Time>>,
     /// sum_p[m]: sum of completion times on machine m
@@ -37,8 +39,8 @@ impl Instance {
         for (i, line) in buffered.lines().enumerate() {
             if i == 0 {  // first line, read n and m
                 let header_line:Vec<u32> = line.unwrap()
-                    .split(" ")
-                    .filter(|e| e.len() > 0)
+                    .split(' ')
+                    .filter(|e| !e.is_empty())
                     .map(|e| e.parse::<u32>().unwrap())
                     .collect();
                 n = header_line[0] as JobId;
@@ -47,8 +49,8 @@ impl Instance {
                 if ( i as MachineId ) <= m {
                     p.push(
                         line.unwrap()
-                            .split(" ")
-                            .filter(|e| e.len() > 0)
+                            .split(' ')
+                            .filter(|e| !e.is_empty())
                             .map(|e| e.parse::<Time>().unwrap())
                             .collect()
                     );
@@ -94,6 +96,7 @@ impl Instance {
             name: filename.to_string(),
             n,
             m,
+            job_machine_ratio: n as f64 / m as f64,
             p,
             sum_p,
             sum_better_first: sum_first_machine,
@@ -107,10 +110,13 @@ impl Instance {
     #[allow(dead_code)]
     pub fn from_pmj(p:Vec<Vec<Time>>) -> Self {
         let sum_p = Self::compute_sum_p(&p);
+        let n = p[0].len() as JobId;
+        let m = p.len() as MachineId;
         Self {
             name: "NONAME_INSTANCE".to_string(),
-            n: p[0].len() as JobId,
-            m: p.len() as MachineId,
+            n,
+            m,
+            job_machine_ratio: n as f64 / m as f64,
             p,
             sum_p,
             sum_better_first: 0, // TODO
@@ -123,6 +129,8 @@ impl Instance {
     pub fn nb_jobs(&self) -> JobId { self.n }
 
     pub fn nb_machines(&self) -> MachineId { self.m }
+
+    pub fn job_machine_ratio(&self) -> f64 { self.job_machine_ratio }
 
     pub fn p(&self, j:JobId, m:MachineId) -> Time { self.p[m as usize][j as usize] }
 
@@ -155,11 +163,11 @@ impl Instance {
     /**
     * p[m][j]: processing time of job j on machine m
     */
-    fn compute_sum_p(p: &Vec<Vec<Time>>) -> Vec<Time> {
+    fn compute_sum_p(p: &[Vec<Time>]) -> Vec<Time> {
         let mut res = vec![0;p.len()];
-        for m in 0..p.len() {
-            for j in 0..p[m].len() {
-                res[m] += p[m][j];
+        for (m,pm) in p.iter().enumerate() {
+            for pmj in pm {
+                res[m] += pmj;
             }
         }
         res

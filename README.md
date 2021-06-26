@@ -60,3 +60,7 @@ should produce the following output:
 ```
 Solution value: 46394
 ```
+
+## benchmarking
+
+This project uses [cargo-criterion](https://crates.io/crates/cargo-criterion).

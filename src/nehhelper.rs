@@ -16,7 +16,7 @@ pub fn compute_job_positions(joblist:Vec<JobId>) -> Vec<usize> {
             debug_assert!((*e as usize) < n);
             res[*e as usize] = i;
       }
-      return res;
+      res
 }
 
 
@@ -24,47 +24,47 @@ pub fn compute_job_positions(joblist:Vec<JobId>) -> Vec<usize> {
  * e, q, and, f values for the Taillard's accelerations
  */
 #[derive(Debug)]
-pub struct EQF {
-      pub e:Vec<Vec<i64>>,
-      pub q:Vec<Vec<i64>>,
-      pub f:Vec<Vec<i64>>,
+pub struct Eqf {
+      pub e:Vec<Vec<Time>>,
+      pub q:Vec<Vec<Time>>,
+      pub f:Vec<Vec<Time>>,
 }
 
 /* void calculate_e_q_f(int m,int k, int ** p_ij,int * partial_sequence,int next_job,long int ** e,long int ** q, long int ** f) */
-pub fn compute_eqf(inst:&Instance, partial_sequence:&Vec<JobId>, next_job:JobId) -> EQF {
+pub fn compute_eqf(inst:&Instance, partial_sequence:&[JobId], next_job:JobId) -> Eqf {
       let m:usize = inst.nb_machines() as usize;
       let k:usize = partial_sequence.len();
-      let mut e = vec![vec![0;k];m as usize];
-      let mut q = vec![vec![0;k+1];m as usize];
-      let mut f = vec![vec![0;k+1];m as usize];
+      let mut e_starting = vec![vec![0;k];   m as usize];
+      let mut q_tail = vec![vec![0;k+1]; m as usize];
+      let mut f = vec![vec![0;k+1]; m as usize];
       // E COMPUTATION (earliest starting time)
       // compute earliest starting time (e)
-      e[0][0] = inst.pmj(0, partial_sequence[0]);
+      e_starting[0][0] = inst.pmj(0, partial_sequence[0]);
       // compute e for the first job
       for i in 1..m {
-            e[i][0] = e[(i-1) as usize][0] + inst.pmj(i as MachineId, partial_sequence[0]);
+            e_starting[i][0] = e_starting[(i-1) as usize][0] + inst.pmj(i as MachineId, partial_sequence[0]);
       }
       // complete for other jobs
-      for j in 1..k {
+      for (j,v) in partial_sequence.iter().enumerate().skip(1) {
             // first machine
-            e[0][j] = e[0][j-1] + inst.pmj(0, partial_sequence[j]);
+            e_starting[0][j] = e_starting[0][j-1] + inst.pmj(0, *v);
             // other machines
             for i in 1..m {
-                  e[i][j] = max(e[i-1][j], e[i][j-1]) + inst.pmj(i as MachineId, partial_sequence[j]);
+                  e_starting[i][j] = max(e_starting[i-1][j], e_starting[i][j-1]) + inst.pmj(i as MachineId, *v);
             }
       }
       // Q COMPUTATION (tail)
       // compute q for the last job
-      q[m-1][k-1] = inst.pmj((m-1) as MachineId, partial_sequence[k-1]);
+      q_tail[m-1][k-1] = inst.pmj((m-1) as MachineId, partial_sequence[k-1]);
       for i in (0..m-1).rev() {
-            q[i][k-1] = q[i+1][k-1] + inst.pmj(i as MachineId, partial_sequence[k-1]);
+            q_tail[i][k-1] = q_tail[i+1][k-1] + inst.pmj(i as MachineId, partial_sequence[k-1]);
       }
       // compute q for the other jobs
       for j in (0..k-1).rev() {
-            q[m-1][j] = q[m-1][j+1] + inst.pmj((m-1) as MachineId, partial_sequence[j]); // last machine
+            q_tail[m-1][j] = q_tail[m-1][j+1] + inst.pmj((m-1) as MachineId, partial_sequence[j]); // last machine
             // other machines
             for i in (0..m-1).rev() {
-                  q[i][j] = max(q[i+1][j], q[i][j+1]) + inst.pmj(i as MachineId, partial_sequence[j])
+                  q_tail[i][j] = max(q_tail[i+1][j], q_tail[i][j+1]) + inst.pmj(i as MachineId, partial_sequence[j])
             }
       }  
       // F COMPUTATION EARLIEST RELATIVE COMPLETION TIME (for all positions, where the job can be inserted)
@@ -75,13 +75,13 @@ pub fn compute_eqf(inst:&Instance, partial_sequence:&Vec<JobId>, next_job:JobId)
       }
       // other positions
       for l in 1..k+1 {
-            f[0][l] = e[0][l-1] + inst.pmj(0, next_job); // first machine
+            f[0][l] = e_starting[0][l-1] + inst.pmj(0, next_job); // first machine
             // other machines
             for i in 1..m {
-                  f[i][l] = max(e[i][l-1], f[i-1][l]) + inst.pmj(i as MachineId, next_job);
+                  f[i][l] = max(e_starting[i][l-1], f[i-1][l]) + inst.pmj(i as MachineId, next_job);
             }
       }      
-      return EQF { e, q, f };
+      Eqf { e: e_starting, q: q_tail, f }
 }
 
 
@@ -89,12 +89,12 @@ pub fn compute_eqf(inst:&Instance, partial_sequence:&Vec<JobId>, next_job:JobId)
  * computes the idle time when inserting a job
  * includes front-delays and excludes back-delays
  */
-pub fn compute_idle_time(inst:&Instance, partial_sequence:&Vec<JobId>, pos:usize, eqf:&EQF) -> i64 {
-      let mut res:i64 = 0;
+pub fn compute_idle_time(inst:&Instance, partial_sequence:&[JobId], pos:usize, eqf:&Eqf) -> Time {
+      let mut res:Time = 0;
       let m:usize = inst.nb_machines() as usize;
       let k:usize = partial_sequence.len();
       if pos < k {
-            let mut fprime:Vec<i64> = vec![0;m];
+            let mut fprime:Vec<Time> = vec![0;m];
             fprime[0] = eqf.f[0][pos] + inst.pmj(0, partial_sequence[pos]);
             for i in 1..m {
                   fprime[i] = max(
@@ -111,7 +111,7 @@ pub fn compute_idle_time(inst:&Instance, partial_sequence:&Vec<JobId>, pos:usize
                   res += eqf.f[i][pos] - eqf.e[i][pos-1];
             }
       }
-      return res;
+      res
 }
 
 
@@ -138,7 +138,7 @@ pub fn first_insertion_neighborhood(inst:&Instance, state:&LocalState) -> Option
         }
         let job = state.s[i];
         // find the best possible insertion for this job
-        let eqf:EQF = compute_eqf(inst, &s2, job);
+        let eqf:Eqf = compute_eqf(inst, &s2, job);
         for l in 0..state.s.len() { // all possible new positions
             let mut bound:Time = eqf.f[0][l] + eqf.q[0][l];
             for i in 1..inst.nb_machines() {
@@ -154,7 +154,7 @@ pub fn first_insertion_neighborhood(inst:&Instance, state:&LocalState) -> Option
         }
         
     }
-    return None;
+    None
 }
 
 
@@ -182,7 +182,7 @@ mod tests {
       fn test_compute_eqf_e() {
             let inst:Instance = Instance::from_pmj(vec![vec![1,2,3,1],vec![2,1,2,1],vec![2,2,2,1]]);
             let partial_sequence = vec![0,1,2];  // only node 0 and 1 is added
-            let res:EQF = compute_eqf(&inst, &partial_sequence, 3);
+            let res:Eqf = compute_eqf(&inst, &partial_sequence, 3);
             // check that the earliest completion time of the first scheduled job is 0
             assert_eq!(res.e[0][0], 1);
             assert_eq!(res.e[1][0], 1+2);
@@ -201,7 +201,7 @@ mod tests {
       fn test_compute_eqf_q() {
             let inst:Instance = Instance::from_pmj(vec![vec![1,2,3,1],vec![2,1,2,1],vec![2,2,2,1]]);
             let partial_sequence = vec![0,1,2];  // only node 0 and 1 is added
-            let res:EQF = compute_eqf(&inst, &partial_sequence, 3);
+            let res:Eqf = compute_eqf(&inst, &partial_sequence, 3);
             assert_eq!(res.q[0][0], 10);
             assert_eq!(res.q[1][0], 8);
             assert_eq!(res.q[2][0], 6);
@@ -219,7 +219,7 @@ mod tests {
       fn test_compute_eqf_f() {
             let inst:Instance = Instance::from_pmj(vec![vec![1,2,3,1],vec![2,1,2,1],vec![2,2,2,1]]);
             let partial_sequence = vec![0,1,2];  // only node 0 and 1 is added
-            let res:EQF = compute_eqf(&inst, &partial_sequence, 3);
+            let res:Eqf = compute_eqf(&inst, &partial_sequence, 3);
             // first position
             assert_eq!(res.f[0][0], 1);
             assert_eq!(res.f[1][0], 2);

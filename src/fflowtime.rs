@@ -6,9 +6,9 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use std::cmp::max;
 
-use dogs::searchspace::{SearchSpace, SearchTree, TotalChildrenExpansion, GuidedSpace};
-use dogs::datastructures::decisiontree::DecisionTree;
-use dogs::datastructures::lazyclonable::LazyClonable;
+use dogs::search_space::{SearchSpace, TotalNeighborGeneration, GuidedSpace, ToSolution};
+use dogs::data_structures::decision_tree::DecisionTree;
+use dogs::data_structures::lazy_clonable::LazyClonable;
 
 use crate::pfsp::{JobId, Time, Instance};
 
@@ -22,8 +22,6 @@ pub enum Guide {
     Bound,
     Idle,
     Alpha,
-    Walpha,
-    Walphaold
 }
 
 #[derive(Debug, Clone)]
@@ -40,20 +38,24 @@ pub struct NodeLazyPart {
     forward_front: NodeVec,
     /// subset of added jobs
     added: BitSet,
+    /// decision tree telling which choice have been done so far
+    decision_tree: Rc<DecisionTree<Decision>>,
 }
 
 #[derive(Debug, Clone)]
 pub struct Node {
     /// nb jobs added
     nb_added: usize,
-    /// prefix bound evaluation
+    /// prefix bound evaluation (g-cost)
     bound: Time,
+    /// h-cost estimate
+    fcost: Time,
     /// total idle time of the given node
     idletime: Time,
     /// weighted idle time
     weightedidle: f64,
-    /// decision tree telling which choice have been done so far
-    decision_tree: Rc<DecisionTree<Decision>>,
+    /// last decision
+    decision: Decision,
     /// lazy part of the node
     lazy_part: LazyClonable<RefCell<NodeLazyPart>>,
 }
@@ -63,63 +65,70 @@ pub struct ForwardSearch {
     inst: Instance,
     guide: Guide,
     solution_file: Option<String>, // if it exists, the path to file where the solution will be contained
-    decision_tree: Rc<DecisionTree<Decision>>,
-}
+    decision_tree: Rc<DecisionTree<Decision>>,}
 
 
 impl GuidedSpace<Node, OrderedFloat<f64>> for ForwardSearch {
     fn guide(&mut self, node: &Node) -> OrderedFloat<f64> {
         match self.guide {
-            Guide::Bound => { return OrderedFloat(node.bound as f64); },
-            Guide::Idle => { return OrderedFloat(node.idletime as f64); },
+            Guide::Bound => { OrderedFloat(node.bound as f64) },
+            Guide::Idle => { OrderedFloat(node.idletime as f64) },
             Guide::Alpha => {
                 let alpha = self.compute_alpha(node);
-                let n = node.nb_added as f64;
-                let m = self.inst.nb_machines() as f64;
-                let c = n/m;
-                return OrderedFloat(
+                let c = self.inst.job_machine_ratio();
+                OrderedFloat(
                     alpha*(node.bound as f64) +
                     (1.-alpha)*c*(node.idletime as f64)
-                );
+                )
             },
-            Guide::Walpha => {
-                let alpha = self.compute_alpha(node);
-                let n = node.nb_added as f64;
-                let m = self.inst.nb_machines() as f64;
-                // let c = m.ln()/n;
-                let c = n/m.ln()/n.ln();
-                return OrderedFloat(
-                    alpha * (self.bound(node) as f64) +
-                    (1.-alpha) * c * node.weightedidle
-                );
-            },
-            Guide::Walphaold => {
-                let alpha = self.compute_alpha(node);
-                let bound_part:f64 = self.bound(node) as f64;
-                let widle_part:f64 = (node.weightedidle as f64 + self.inst.nb_machines() as f64 * node.idletime as f64) as f64 / 2.;
-                return OrderedFloat(alpha * bound_part + (1.-alpha) * widle_part);
-            }
         }
     }
 }
 
 
-impl SearchSpace<Node, Vec<JobId>> for ForwardSearch {
-    fn solution(&mut self, node: &Node) -> Vec<JobId> {
+impl ToSolution<Node, Vec<JobId>> for ForwardSearch {
+    fn solution(&mut self, node: &mut Node) -> Vec<JobId> {
         debug_assert!(self.goal(node));
-        let decisions:Vec<Decision> = DecisionTree::decisions_from_root(&node.decision_tree);
+        self.compute_lazy_part(node);  // make sure the lazy part is computed
+        let node_lazypart = node.lazy_part.lazy_get();
+        let lazy_part = node_lazypart.as_ref().borrow();
+        let decisions:Vec<Decision> = DecisionTree::decisions_from_root(&lazy_part.decision_tree);
         let mut res:Vec<JobId> = Vec::with_capacity(self.inst.nb_jobs() as usize);
         for e in decisions {
-            match e {
-                Decision::AddForwardSearch(j) => { res.push(j); }
-                _ => {}
-            }
+            if let Decision::AddForwardSearch(j) = e { res.push(j); }
         }
         res
     }
+}
 
-    fn handle_new_best(&mut self, node: Node) -> Node {
-        let sol = self.solution(&node);
+
+impl SearchSpace<Node, Time> for ForwardSearch {
+
+    fn initial(&mut self) -> Node {
+        let m = self.inst.nb_machines() as usize;
+        Node {
+            nb_added: 0,
+            bound: 0,
+            fcost: 0,
+            idletime: 0,
+            weightedidle: 0.,
+            decision: Decision::None,
+            lazy_part: LazyClonable::new(RefCell::new(NodeLazyPart {
+                forward_front: vec![0; m],
+                added: BitSet::new(),
+                decision_tree: self.decision_tree.clone(),
+            })),
+        }
+    }
+
+    fn g_cost(&mut self, node: &Node) -> Time { node.bound }
+
+    fn bound(&mut self, node: &Node) -> Time { node.fcost }
+
+    fn goal(&mut self, node: &Node) -> bool { node.nb_added == self.inst.nb_jobs() as usize }
+
+    fn handle_new_best(&mut self, mut node: Node) -> Node {
+        let sol = self.solution(&mut node);
         // write solution in a file
         match &self.solution_file {
             None => {},
@@ -139,10 +148,10 @@ impl SearchSpace<Node, Vec<JobId>> for ForwardSearch {
 }
 
 
-impl TotalChildrenExpansion<Node> for ForwardSearch {
-    fn children(&mut self, node: &mut Node) -> Vec<Node> {
+impl TotalNeighborGeneration<Node> for ForwardSearch {
+    fn neighbors(&mut self, node: &mut Node) -> Vec<Node> {
         self.compute_lazy_part(node);  // make sure the lazy part is computed
-        let node_lazypart = node.lazy_part.lazyget();
+        let node_lazypart = node.lazy_part.lazy_get();
         let lazy_part = node_lazypart.as_ref().borrow();
         let mut res = Vec::with_capacity(self.inst.nb_jobs() as usize - node.nb_added);
         for j in 0..self.inst.nb_jobs() {
@@ -155,36 +164,11 @@ impl TotalChildrenExpansion<Node> for ForwardSearch {
 }
 
 
-impl SearchTree<Node, Time> for ForwardSearch {
-
-    fn root(&mut self) -> Node {
-        let m = self.inst.nb_machines() as usize;
-        Node {
-            nb_added: 0,
-            bound: 0,
-            idletime: 0,
-            weightedidle: 0.,
-            decision_tree: self.decision_tree.clone(),
-            lazy_part: LazyClonable::new(RefCell::new(NodeLazyPart {
-                forward_front: vec![0; m],
-                added: BitSet::new(),
-            })),
-        }
-    }
-
-    fn bound(&mut self, node: &Node) -> Time {
-        return node.bound;
-    }
-
-    fn goal(&mut self, node: &Node) -> bool {
-        return node.nb_added == self.inst.nb_jobs() as usize;
-    }
-}
-
 impl ForwardSearch {
     pub fn new(filename: &str, guide:Guide, solution_filename:Option<String>) -> Self {
+        let inst = Instance::new(&filename).unwrap();
         Self {
-            inst: Instance::new(&filename).unwrap(),
+            inst,
             guide,
             solution_file: solution_filename,
             decision_tree: DecisionTree::new(Decision::None),
@@ -196,13 +180,14 @@ impl ForwardSearch {
         match node.lazy_part.is_cloned() {
             true => {}  // already computed, do nothing
             false => {
-                let node_lazypart:Rc<RefCell<NodeLazyPart>> = node.lazy_part.lazyget();
+                let node_lazypart:Rc<RefCell<NodeLazyPart>> = node.lazy_part.lazy_get();
                 let mut res = node_lazypart.as_ref().borrow_mut();
-                match node.decision_tree.d {
+                match node.decision {
                     Decision::None => {},
                     Decision::AddForwardSearch(j) => {
                         res.added.insert(j as usize);
                         res.forward_front[0] += self.inst.p(j,0);
+                        res.decision_tree = DecisionTree::add_child(&res.decision_tree, node.decision.clone());
                         for m in 1..self.inst.nb_machines() {
                             let start = max(
                                 res.forward_front[m as usize - 1],
@@ -219,10 +204,9 @@ impl ForwardSearch {
 
     pub fn add_job_forward(&self, node:&mut Node, j: JobId) -> Node {
         self.compute_lazy_part(node);  // make sure the lazy part is computed
-        let node_lazypart = node.lazy_part.lazyget();
+        let node_lazypart = node.lazy_part.lazy_get();
         let lazy_part = node_lazypart.as_ref().borrow();
         let mut res = node.clone();
-        let alpha = self.compute_alpha(node)+1.;
         // update front & idle time
         let mut front = lazy_part.forward_front[0] + self.inst.p(j,0);
         for m in 1..self.inst.nb_machines() {
@@ -230,13 +214,19 @@ impl ForwardSearch {
             let start = max(front, lazy_part.forward_front[m as usize]);
             let current_idle = max(0, start - lazy_part.forward_front[m as usize]);
             res.idletime += current_idle;
-            res.weightedidle += current_idle as f64 * (alpha*(self.inst.nb_machines()-m) as f64);
             front = start + p;
         }
-        res.decision_tree = DecisionTree::add_child(&node.decision_tree, Decision::AddForwardSearch(j));
+        res.decision = Decision::AddForwardSearch(j);
         res.nb_added += 1;
+        let last_front;
+        if node.nb_added == 0 {
+            last_front = 0;
+        } else {
+            last_front = *lazy_part.forward_front.last().unwrap();
+        }
         res.bound += front;
-        return res;
+        res.fcost += (front-last_front)*(self.inst.nb_jobs()-node.nb_added as u32) as Time;
+        res
     }
 
     /**

@@ -1,9 +1,9 @@
 use std::cmp::max;
 use ordered_float::OrderedFloat;
 
-use dogs::searchspace::{SearchSpace, SearchTree, TotalChildrenExpansion, GuidedSpace};
+use dogs::search_space::{SearchSpace, TotalNeighborGeneration, GuidedSpace, ToSolution};
 
-use crate::nehhelper::{compute_eqf, EQF, compute_idle_time, first_insertion_neighborhood, LocalState};
+use crate::nehhelper::{compute_eqf, Eqf, compute_idle_time, first_insertion_neighborhood, LocalState};
 use crate::pfsp::{JobId, Time, Instance};
 
 #[derive(Debug, Clone)]
@@ -16,12 +16,14 @@ pub enum Guide {
 
 #[derive(Debug, Clone)]
 pub struct NEHNode {
-    inserted_jobs: Vec<JobId>, // already inserted jobs (partial sequence)
+    /// already inserted jobs (partial sequence)
+    inserted_jobs: Vec<JobId>,
     /// bound on already inserted jobs
     bound: Time,
     /// bound on remaining jobs
     bound_remaining: Time,
-    idletime: Option<i64>,  // optionnal idle time of the node (used in tie breaking for instance)
+    // optionnal idle time of the node (used in tie breaking for instance)
+    idletime: Option<Time>,
 }
 
 pub struct NEHSearch {
@@ -31,16 +33,36 @@ pub struct NEHSearch {
 }
 
 
-impl SearchSpace<NEHNode, Vec<JobId>> for NEHSearch {
-    fn solution(&mut self, node: &NEHNode) -> Vec<JobId> {
+impl ToSolution<NEHNode, Vec<JobId>> for NEHSearch {
+    fn solution(&mut self, node: &mut NEHNode) -> Vec<JobId> {
         debug_assert!(self.goal(node));
-        return node.inserted_jobs.clone();
+        node.inserted_jobs.clone()
+    }
+}
+
+
+impl SearchSpace<NEHNode, Time> for NEHSearch {
+    fn initial(&mut self) -> NEHNode {
+        NEHNode {
+            inserted_jobs: Vec::new(),
+            bound: 0,
+            bound_remaining: self.inst.sum_better_first_machine()+self.inst.sum_better_last_machine(),
+            idletime: None,
+        }
     }
 
-    fn handle_new_best(&mut self, node: NEHNode) -> NEHNode {
+    fn bound(&mut self, node: &NEHNode) -> Time { node.bound+node.bound_remaining }
+
+    fn g_cost(&mut self, node: &NEHNode) -> Time { node.bound }
+
+    fn goal(&mut self, node: &NEHNode) -> bool {
+        node.inserted_jobs.len() == self.inst.nb_jobs() as usize
+    }
+
+    fn handle_new_best(&mut self, mut node: NEHNode) -> NEHNode {
         // apply neighborhood decent
         let mut local_state = LocalState {
-            s: self.solution(&node),
+            s: self.solution(&mut node),
             v: self.bound(&node)
         };
         if true {
@@ -105,8 +127,8 @@ impl GuidedSpace<NEHNode, OrderedFloat<f64>> for NEHSearch {
 }
 
 
-impl TotalChildrenExpansion<NEHNode> for NEHSearch {
-    fn children(&mut self, node: &mut NEHNode) -> Vec<NEHNode> {
+impl TotalNeighborGeneration<NEHNode> for NEHSearch {
+    fn neighbors(&mut self, node: &mut NEHNode) -> Vec<NEHNode> {
         debug_assert!(!self.goal(node));  // should not be goal
         let mut res:Vec<NEHNode> = Vec::with_capacity(node.inserted_jobs.len()+1);
         let k = node.inserted_jobs.len();  // kth job to be inserted in the partial solution
@@ -131,7 +153,7 @@ impl TotalChildrenExpansion<NEHNode> for NEHSearch {
                 idletime: None,
             })
         } else {
-            let eqf:EQF = compute_eqf(&self.inst, &node.inserted_jobs, j);
+            let eqf:Eqf = compute_eqf(&self.inst, &node.inserted_jobs, j);
             // try all possible insertions
             for l in 0..k+1 {  // l being the position to insert the job
                 let mut inserted = node.inserted_jobs.clone();
@@ -152,30 +174,10 @@ impl TotalChildrenExpansion<NEHNode> for NEHSearch {
                 });
             }
         }
-        return res;
+        res
     }
 }
 
-
-impl SearchTree<NEHNode, Time> for NEHSearch {
-    fn root(&mut self) -> NEHNode {
-        return NEHNode {
-            inserted_jobs: Vec::new(),
-            bound: 0,
-            bound_remaining: self.inst.sum_better_first_machine()+self.inst.sum_better_last_machine(),
-            idletime: None,
-        };
-    }
-
-    fn bound(&mut self, node: &NEHNode) -> Time {
-        return node.bound+node.bound_remaining;
-    }
-
-    fn goal(&mut self, node: &NEHNode) -> bool {
-        return node.inserted_jobs.len() == self.inst.nb_jobs() as usize;
-    }
-
-}
 
 impl NEHSearch {
     pub fn new(filename: &str, tb: Guide) -> Self {
@@ -206,8 +208,8 @@ impl NEHSearch {
      *  - the root is 0
      *  - a goal is 1
      *  - 0.5 indicates that there are as many jobs scheduled than unscheduled
-     */
-     fn compute_alpha(&self, node:&NEHNode) -> f64 {
-        return ( node.inserted_jobs.len() as f64 ) / ( self.inst.nb_jobs() as f64 );
+    */
+    fn compute_alpha(&self, node:&NEHNode) -> f64 {
+        node.inserted_jobs.len() as f64 / self.inst.nb_jobs() as f64
     }
 }

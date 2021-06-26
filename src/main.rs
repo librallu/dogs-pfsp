@@ -10,12 +10,12 @@ use clap::{App, Arg, SubCommand};
 
 use serde_json::json;
 
-use dogs::metriclogger::MetricLogger;
-use dogs::searchalgorithm::{SearchAlgorithm, TimeStoppingCriterion};
-use dogs::searchspace::{SearchSpace,GuidedSpace,SearchTree,TotalChildrenExpansion};
-use dogs::treesearch::algo::beamsearch::create_iterative_beam_search;
-use dogs::treesearch::decorators::pruning::PruningDecorator;
-use dogs::treesearch::decorators::stats::StatTsDecorator;
+use dogs::metric_logger::MetricLogger;
+use dogs::search_algorithm::{SearchAlgorithm, TimeStoppingCriterion};
+use dogs::search_space::{SearchSpace,GuidedSpace,TotalNeighborGeneration};
+use dogs::tree_search::algo::beamsearch::create_iterative_beam_search;
+use dogs::tree_search::decorators::pruning::PruningDecorator;
+use dogs::tree_search::decorators::stats::StatTsDecorator;
 // use dogs::treesearch::decorators::bounding::BoundingDecorator;
 
 mod pfsp;
@@ -25,11 +25,11 @@ mod nehhelper;
 mod nehmakespan;
 // mod expandmakespan;
 
-fn run_search_tree<T,N,Sol>(space:T, t:f32, perf_file: Option<String>, inst_name: &str, algo_name:String) where
-T:SearchSpace<N,Sol>+GuidedSpace<N,OrderedFloat<f64>>+SearchTree<N,pfsp::Time>+TotalChildrenExpansion<N>,
+fn run_search_tree<T,N>(space:T, t:f32, perf_file: Option<String>, inst_name: &str, algo_name:String) where
+T:SearchSpace<N,pfsp::Time>+GuidedSpace<N,OrderedFloat<f64>>+TotalNeighborGeneration<N>,
 N:Clone {
     // create logger and stopping criterion
-    let logger = Rc::new(MetricLogger::new());
+    let logger = Rc::new(MetricLogger::default());
     let stopping_criterion = TimeStoppingCriterion::new(t);
     // create search space
     let space = Rc::new(RefCell::new(
@@ -49,25 +49,21 @@ N:Clone {
     // display the results afterwards
     space.borrow_mut().display_statistics();
     // export statistics to file
-    match perf_file {
-        Some(f) => {
-            let mut res = json!({});
-            res["inst"] = json!(inst_name);
-            res["algo"] = json!(algo_name);
-            res["stats_pareto"] = space.borrow().get_pareto_diagram();
-            res["stats"] = json!({});
-            space.borrow().export_statistics(&mut res["stats"]);
-            res["is_optimal"] = json!(ts.is_optimal());
-            let mut file = match File::create(f.as_str()) {
-                Err(why) => panic!("couldn't create {}: {}", f, why),
-                Ok(file) => file
-            };
-            match file.write(serde_json::to_string(&res).unwrap().as_bytes()) {
-                Err(why) => panic!("couldn't write: {}",why),
-                Ok(_) => {}
-            };
-        }
-        _ => {}
+    if let Some(f) = perf_file {
+        let mut res = json!({});
+        res["inst"] = json!(inst_name);
+        res["algo"] = json!(algo_name);
+        res["stats_pareto"] = space.borrow().get_pareto_diagram();
+        res["stats"] = json!({});
+        space.borrow().export_statistics(&mut res["stats"]);
+        res["is_optimal"] = json!(ts.is_optimal());
+        let mut file = match File::create(f.as_str()) {
+            Err(why) => panic!("couldn't create {}: {}", f, why),
+            Ok(file) => file
+        };
+        if let Err(why) = file.write(serde_json::to_string(&res).unwrap().as_bytes()) {
+            panic!("couldn't write: {}",why)
+        };
     }
 }
 
@@ -179,19 +175,20 @@ fn main() {
             "bound" => fflowtime::Guide::Bound,
             "idle" => fflowtime::Guide::Idle,
             "alpha" => fflowtime::Guide::Alpha,
-            "walpha" => fflowtime::Guide::Walpha,
-            "walphaold" => fflowtime::Guide::Walphaold,
             _ => {
                 panic!("unknown guide (possible values: [bound, idle, alpha, walpha, walphaold]")
             }
         };
         println!(" ============== Forward Flowtime(g={:?}) ==============\n", guide);
         run_search_tree(
-            PruningDecorator::new(fflowtime::ForwardSearch::new(
-                inst_filename,
-                guide.clone(),
-                sol_file.clone(),
-            )), t, perf_file.clone(), inst_filename, format!("IBS_forw_{:?}", guide)
+            // PruningDecorator::new(
+                fflowtime::ForwardSearch::new(
+                    inst_filename,
+                    guide.clone(),
+                    sol_file.clone(),
+                )
+            // )
+            , t, perf_file.clone(), inst_filename, format!("IBS_forw_{:?}", guide)
         );
     }
     if let Some(branching_args) = main_args.subcommand_matches("neh_makespan") {
@@ -232,10 +229,7 @@ fn main() {
                 panic!("unknown branching (possible values: [forward, bi_alt, bi_min]")
             }
         };
-        let use_ls = match branching_args.occurrences_of("localsearch") {
-            0 => false,
-            _ => true,
-        };
+        let use_ls = matches!(branching_args.occurrences_of("localsearch"), 1);
         println!(" Bi-directionnal Makespan (g={:?}, b={:?}, l:{})\n", guide, branching, use_ls);
         let mut algo_name:String = format!("IBS_{:?}_{:?}", branching, guide);
         if use_ls {
@@ -244,11 +238,11 @@ fn main() {
         run_search_tree(
             fbmakespan::FBMakespan::new(
                 inst_filename,
-                guide.clone(),
-                branching.clone(),
+                guide,
+                branching,
                 use_ls,
-                sol_file.clone(),
-            ), t, perf_file.clone(), inst_filename, algo_name
+                sol_file,
+            ), t, perf_file, inst_filename, algo_name
         );
     }
 
