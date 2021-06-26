@@ -34,15 +34,15 @@ pub struct Eqf {
 pub fn compute_eqf(inst:&Instance, partial_sequence:&[JobId], next_job:JobId) -> Eqf {
       let m:usize = inst.nb_machines() as usize;
       let k:usize = partial_sequence.len();
-      let mut e_starting = vec![vec![0;k];   m as usize];
-      let mut q_tail = vec![vec![0;k+1]; m as usize];
-      let mut f = vec![vec![0;k+1]; m as usize];
+      let mut e_starting = vec![vec![0;k];   m];
+      let mut q_tail = vec![vec![0;k+1]; m];
+      let mut f = vec![vec![0;k+1]; m];
       // E COMPUTATION (earliest starting time)
       // compute earliest starting time (e)
       e_starting[0][0] = inst.pmj(0, partial_sequence[0]);
       // compute e for the first job
       for i in 1..m {
-            e_starting[i][0] = e_starting[(i-1) as usize][0] + inst.pmj(i as MachineId, partial_sequence[0]);
+            e_starting[i][0] = e_starting[(i-1)][0] + inst.pmj(i as MachineId, partial_sequence[0]);
       }
       // complete for other jobs
       for (j,v) in partial_sequence.iter().enumerate().skip(1) {

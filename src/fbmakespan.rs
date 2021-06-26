@@ -10,7 +10,7 @@ use dogs::search_space::{SearchSpace, TotalNeighborGeneration, GuidedSpace, ToSo
 use dogs::data_structures::decision_tree::DecisionTree;
 use dogs::data_structures::lazy_clonable::LazyClonable;
 
-use crate::pfsp::{JobId, MachineId, Time, Instance};
+use crate::pfsp::{JobId, Time, Instance};
 use crate::nehhelper::{LocalState, first_insertion_neighborhood};
 
 /**
@@ -167,7 +167,7 @@ impl SearchSpace<FBNode, Time> for FBMakespan {
         let mut bound = 0;
         sum_p = vec![0; m];
         for i in 0..self.inst.nb_machines() {
-            sum_p[i as usize] = self.inst.sum_p(i as MachineId);
+            sum_p[i as usize] = self.inst.sum_p(i);
             bound = max(bound, sum_p[i as usize]);
         }
         // build the root node

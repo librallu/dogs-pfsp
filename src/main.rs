@@ -1,13 +1,35 @@
+//! useful additional warnings if docs are missing, or crates imported but unused, etc.
+#![warn(missing_debug_implementations)]
+#![warn(missing_docs)]
+#![warn(trivial_casts, trivial_numeric_casts)]
+#![warn(unsafe_code)]
+#![warn(unused_extern_crates)]
+#![warn(variant_size_differences)]
+
+//! not sure if already by default in clippy
+#![warn(clippy::similar_names)]
+#![warn(clippy::shadow_unrelated)]
+#![warn(clippy::shadow_same)]
+#![warn(clippy::shadow_reuse)]
+
+//! checks integer arithmetic in the project
+// #![warn(clippy::integer_arithmetic)]
+
+//! these flags can be useful, but will indicate normal behavior
+// #![warn(clippy::use_debug)]
+// #![warn(clippy::print_stdout)]
+// #![warn(clippy::cast_possible_truncation)]
+// #![warn(clippy::cast_possible_wrap)]
+// #![warn(clippy::cast_precision_loss)]
+// #![warn(clippy::cast_sign_loss)]
+
 use std::cell::RefCell;
 use std::fs::File;
 use std::io::Write;
 use std::rc::Rc;
 
 use ordered_float::OrderedFloat;
-
-extern crate clap;
 use clap::{App, Arg, SubCommand};
-
 use serde_json::json;
 
 use dogs::metric_logger::MetricLogger;

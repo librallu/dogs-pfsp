@@ -43,8 +43,8 @@ impl Instance {
                     .filter(|e| !e.is_empty())
                     .map(|e| e.parse::<u32>().unwrap())
                     .collect();
-                n = header_line[0] as JobId;
-                m = header_line[1] as MachineId;
+                n = header_line[0];
+                m = header_line[1];
             } else {  // read processing times matrix
                 if ( i as MachineId ) <= m {
                     p.push(
