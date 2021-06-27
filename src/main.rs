@@ -35,7 +35,7 @@ use serde_json::json;
 use dogs::metric_logger::MetricLogger;
 use dogs::search_algorithm::{SearchAlgorithm, TimeStoppingCriterion};
 use dogs::search_space::{SearchSpace,GuidedSpace,TotalNeighborGeneration};
-use dogs::tree_search::algo::beamsearch::create_iterative_beam_search;
+use dogs::tree_search::algo::beam_search::create_iterative_beam_search;
 use dogs::tree_search::decorators::pruning::PruningDecorator;
 use dogs::tree_search::decorators::stats::StatTsDecorator;
 // use dogs::treesearch::decorators::bounding::BoundingDecorator;
