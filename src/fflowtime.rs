@@ -10,7 +10,7 @@ use dogs::search_space::{SearchSpace, TotalNeighborGeneration, GuidedSpace, ToSo
 use dogs::data_structures::decision_tree::DecisionTree;
 use dogs::data_structures::lazy_clonable::LazyClonable;
 
-use crate::pfsp::{JobId, Time, Instance};
+use crate::pfsp::{JobId, Time, Instance, ProblemObjective, checker};
 
 pub type NodeVec = Vec<Time>;
 
@@ -75,7 +75,7 @@ impl GuidedSpace<Node, OrderedFloat<f64>> for ForwardSearch {
             Guide::Idle => { OrderedFloat(node.idletime as f64) },
             Guide::Alpha => {
                 let alpha = self.compute_alpha(node);
-                let c = self.inst.job_machine_ratio();
+                let c = node.nb_added as f64 / self.inst.nb_machines() as f64;
                 OrderedFloat(
                     alpha*(node.bound as f64) +
                     (1.-alpha)*c*(node.idletime as f64)
@@ -129,6 +129,11 @@ impl SearchSpace<Node, Time> for ForwardSearch {
 
     fn handle_new_best(&mut self, mut node: Node) -> Node {
         let sol = self.solution(&mut node);
+        // check that the solution is correct and has the correct cost
+        assert_eq!(
+            checker(&self.inst, ProblemObjective::Flowtime, &sol),
+            node.bound
+        );
         // write solution in a file
         match &self.solution_file {
             None => {},

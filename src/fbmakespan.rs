@@ -10,7 +10,7 @@ use dogs::search_space::{SearchSpace, TotalNeighborGeneration, GuidedSpace, ToSo
 use dogs::data_structures::decision_tree::DecisionTree;
 use dogs::data_structures::lazy_clonable::LazyClonable;
 
-use crate::pfsp::{JobId, Time, Instance};
+use crate::pfsp::{JobId, Time, Instance, MachineId, ProblemObjective, checker};
 use crate::nehhelper::{LocalState, first_insertion_neighborhood};
 
 /**
@@ -161,15 +161,6 @@ impl ToSolution<FBNode, Vec<JobId>> for FBMakespan {
 impl SearchSpace<FBNode, Time> for FBMakespan {
     fn initial(&mut self) -> FBNode {
         let m = self.inst.nb_machines() as usize;
-        // compute the sum of processing times for each machine, and initialize the lower bound
-        // TODO precompute the following in the SearchSpace
-        let mut sum_p ;
-        let mut bound = 0;
-        sum_p = vec![0; m];
-        for i in 0..self.inst.nb_machines() {
-            sum_p[i as usize] = self.inst.sum_p(i);
-            bound = max(bound, sum_p[i as usize]);
-        }
         // build the root node
         FBNode {
             lazy_part: LazyClonable::new(RefCell::new(FBNodeLazyPart {
@@ -177,13 +168,14 @@ impl SearchSpace<FBNode, Time> for FBMakespan {
                 backward_front: vec![0; m],
                 forward_idle:   vec![0; m],
                 backward_idle:  vec![0; m],
-                remaining_processing_time: sum_p,
+                remaining_processing_time: (0..m)
+                    .map(|i| self.inst.sum_p(i as MachineId)).collect(),
                 added: BitSet::new(),
                 idletime: 0,
                 decision_tree: DecisionTree::new(FBDecision::None),
             })),
             nb_added: 0,
-            bound,
+            bound: self.inst.processing_time_bound(),
             guide: OrderedFloat(0.),
             forward_walpha: None,
             backward_walpha: None,
@@ -224,6 +216,11 @@ impl SearchSpace<FBNode, Time> for FBMakespan {
                 self.best_val = Some(local_state.v);
             }
         }
+        // check that the solution is correct and has the correct cost
+        assert_eq!(
+            checker(&self.inst, ProblemObjective::Makespan, &local_state.s),
+            local_state.v
+        );
         // write solution in a file if needed
         match &self.solution_file {
             None => {},

@@ -3,8 +3,8 @@ use ordered_float::OrderedFloat;
 
 use dogs::search_space::{SearchSpace, TotalNeighborGeneration, GuidedSpace, ToSolution};
 
-use crate::nehhelper::{compute_eqf, Eqf, compute_idle_time, first_insertion_neighborhood, LocalState};
-use crate::pfsp::{JobId, Time, Instance};
+use crate::nehhelper::{compute_eqf, Eqf, compute_idle_time, LocalState};
+use crate::pfsp::{JobId, Time, Instance, ProblemObjective, checker};
 
 #[derive(Debug, Clone)]
 pub enum Guide {
@@ -61,21 +61,26 @@ impl SearchSpace<NEHNode, Time> for NEHSearch {
 
     fn handle_new_best(&mut self, mut node: NEHNode) -> NEHNode {
         // apply neighborhood decent
-        let mut local_state = LocalState {
+        let local_state = LocalState {
             s: self.solution(&mut node),
             v: self.bound(&node)
         };
-        if true {
-            loop {
-                match first_insertion_neighborhood(&self.inst, &local_state) {
-                    None => { break; },
-                    Some(e) => {
-                        // println!("{} \t -> \t {}", local_state.v, e.v);
-                        local_state = e;
-                    }
-                }
-            }
-        }
+        // check that the solution is correct and has the correct cost
+        assert_eq!(
+            checker(&self.inst, ProblemObjective::Makespan, &local_state.s),
+            local_state.v
+        );
+        // if true {
+        //     loop {
+        //         match first_insertion_neighborhood(&self.inst, &local_state) {
+        //             None => { break; },
+        //             Some(e) => {
+        //                 // println!("{} \t -> \t {}", local_state.v, e.v);
+        //                 local_state = e;
+        //             }
+        //         }
+        //     }
+        // }
         // // write solution in a file
         // match &self.solution_file {
         //     None => {},

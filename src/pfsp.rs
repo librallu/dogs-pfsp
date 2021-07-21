@@ -1,16 +1,24 @@
 use std::fs::File;
 use std::io::{BufRead, BufReader, Error};
 use std::vec::Vec;
-use std::cmp::{min,max};
 
 pub type JobId = u32;
 pub type MachineId = u32;
 pub type Time = i64;
 
+/// problem objective
+pub enum ProblemObjective {
+    Makespan,
+    Flowtime,
+}
+
 #[derive(Debug)]
 pub struct Instance {
+    /// name of the instance
     name: String,
+    /// number of jobs
     n: JobId,
+    /// number of machines
     m: MachineId,
     /// nb_jobs / nb_machines
     job_machine_ratio: f64,
@@ -22,10 +30,8 @@ pub struct Instance {
     sum_better_first: Time,
     /// sum of processing times of jobs better on the last machine
     sum_better_last: Time,
-    /// job_spans[j] -> span of job j
-    job_spans: Vec<Time>,
-    /// sorted_by_span[i] -> ith job sorted by increasing span
-    sorted_by_span: Vec<JobId>,
+    /// simple bound using processing times
+    processing_time_bound: Time,
 }
 
 impl Instance {
@@ -58,39 +64,8 @@ impl Instance {
             }
         }
         let sum_p = Self::compute_sum_p(&p);
-        // compute job spans
-        let mut sum_first_machine:Time = 0;
-        let mut sum_last_machine:Time = 0;
-        let mut min_span:Time = Time::MAX;
-        let mut max_span:Time = 0;
-        let mut job_spans:Vec<Time> = Vec::with_capacity(n as usize);
-        let last_machine = (m-1) as usize;
-        for j in 0..n {
-            let mut tmp:Time = 0;
-            if p[0][j as usize] < p[last_machine][j as usize] {
-                sum_first_machine += p[0][j as usize];
-            } else {
-                sum_last_machine += p[last_machine][j as usize];
-            }
-            for i in 0..m {
-                tmp += p[i as usize][j as usize];
-            }
-            job_spans.push(tmp);
-            min_span = min(min_span, tmp);
-            max_span = max(max_span, tmp);
-        }
-        println!("min/max span size: {}\t{}", min_span, max_span);
-        let mut sorted_jobs_by_span:Vec<JobId> = Vec::with_capacity(n as usize);
-        for j in 0..n {
-            sorted_jobs_by_span.push(j);
-        }
-        sorted_jobs_by_span.sort_by_key(|j| job_spans[*j as usize]);
-        sorted_jobs_by_span.reverse();
-        println!("{}\t{}\t{}",
-            job_spans[sorted_jobs_by_span[0] as usize],
-            job_spans[sorted_jobs_by_span[1] as usize],
-            job_spans[sorted_jobs_by_span[2] as usize]
-        );
+        let processing_time_bound:Time = *sum_p.iter().max().unwrap();
+        let (sum_better_first,sum_better_last) = Self::compute_better_first_last(&p);
         // return the instance
         Ok(Instance {
             name: filename.to_string(),
@@ -99,10 +74,9 @@ impl Instance {
             job_machine_ratio: n as f64 / m as f64,
             p,
             sum_p,
-            sum_better_first: sum_first_machine,
-            sum_better_last: sum_last_machine,
-            job_spans,
-            sorted_by_span: sorted_jobs_by_span,
+            sum_better_first,
+            sum_better_last,
+            processing_time_bound,
         })
     }
 
@@ -112,6 +86,8 @@ impl Instance {
         let sum_p = Self::compute_sum_p(&p);
         let n = p[0].len() as JobId;
         let m = p.len() as MachineId;
+        let processing_time_bound:Time = *sum_p.iter().max().unwrap();
+        let (sum_better_first,sum_better_last) = Self::compute_better_first_last(&p);
         Self {
             name: "NONAME_INSTANCE".to_string(),
             n,
@@ -119,45 +95,46 @@ impl Instance {
             job_machine_ratio: n as f64 / m as f64,
             p,
             sum_p,
-            sum_better_first: 0, // TODO
-            sum_better_last: 0, // TODO
-            job_spans: Vec::new(), // TODO
-            sorted_by_span: Vec::new(), // TODO
+            sum_better_first,
+            sum_better_last,
+            processing_time_bound,
         }
     }
 
+    /// returns the number of jobs
     pub fn nb_jobs(&self) -> JobId { self.n }
 
+    /// returns the number of machines
     pub fn nb_machines(&self) -> MachineId { self.m }
 
-    pub fn job_machine_ratio(&self) -> f64 { self.job_machine_ratio }
-
+    /// returns the processing time of job j on machine m (j first, m second)
     pub fn p(&self, j:JobId, m:MachineId) -> Time { self.p[m as usize][j as usize] }
 
+    /// returns the processing time of job j on machine m (m first, j second)
     #[allow(dead_code)]
     pub fn pmj(&self, m:MachineId, j:JobId) -> Time { self.p(j,m) }
 
+    /// returns the sum of processing times on machine m (∑_j p(j,m))
     pub fn sum_p(&self, m:MachineId) -> Time { self.sum_p[m as usize] }
 
+    /// job processing times lower bound
+    pub fn processing_time_bound(&self) -> Time { self.processing_time_bound }
+
+    /// true if the job j is shorter on the first machine
     pub fn better_on_first_machine(&self, j:JobId) -> bool {
         self.p(j, 0) < self.p(j, self.nb_machines()-1)
     }
 
+    /// sum of processing times of jobs better on the first machine
     pub fn sum_better_first_machine(&self) -> Time {
         self.sum_better_first
     }
 
+    /// sum of processing times of jobs better on the last machine
     pub fn sum_better_last_machine(&self) -> Time {
         self.sum_better_last
     }
 
-    // pub fn ith_sorted_by_span(&self, i:usize) -> JobId {
-    //     self.sorted_by_span[i]
-    // }
-
-    // pub fn job_span(&self, j:JobId) -> Time {
-    //     self.job_spans[j as usize]
-    // }
 
     /* INTERNAL METHODS */
     /**
@@ -173,5 +150,57 @@ impl Instance {
         res
     }
 
+    /// computes sums better on first/last machine
+    fn compute_better_first_last(p: &[Vec<Time>]) -> (Time,Time) {
+        let mut sum_first_machine:Time = 0;
+        let mut sum_last_machine:Time = 0;
+        let last_machine = p.len()-1;
+        let n = p[0].len();
+        for j in 0..n {
+            if p[0][j] < p[last_machine][j] {
+                sum_first_machine += p[0][j];
+            } else {
+                sum_last_machine += p[last_machine][j];
+            }
+        }
+        (sum_first_machine, sum_last_machine)
+    }
+
 }
 
+pub fn checker(inst: &Instance, objective:ProblemObjective, sol:&[JobId]) -> Time {
+    let m = inst.nb_machines();
+    let n = inst.nb_jobs();
+    // check that every job is scheduled
+    let mut is_scheduled = vec![false;n as usize];
+    let mut nb_different = 0;
+    for j in sol {
+        if j >= &n { panic!("job {} is larger than the job number", j); }
+        if !is_scheduled[*j as usize] {
+            is_scheduled[*j as usize] = true;
+            nb_different += 1;
+        } else {
+            panic!("job {} is scheduled twice", j);
+        }
+    }
+    if nb_different != n {
+        panic!("number of different jobs ({}) is different than n ({})", nb_different, n);
+    }
+    // compute cost
+    let mut res = 0;
+    let mut front = vec![0 ; m as usize];
+    for j in sol {
+        front[0] += inst.p(*j,0);
+        for i in 1..m {
+            front[i as usize] = std::cmp::max(
+                front[(i-1) as usize],
+                front[i as usize]
+            )+inst.p(*j, i);
+        }
+        if let ProblemObjective::Flowtime = objective { res += front[(m-1) as usize]; };
+    }
+    match objective {
+        ProblemObjective::Flowtime => res,
+        ProblemObjective::Makespan => front[(m-1) as usize]
+    }
+}

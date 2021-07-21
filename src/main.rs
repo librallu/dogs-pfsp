@@ -29,7 +29,11 @@ use std::io::Write;
 use std::rc::Rc;
 
 use ordered_float::OrderedFloat;
-use clap::{App, Arg, SubCommand};
+
+#[macro_use]
+extern crate clap;
+use clap::App;
+
 use serde_json::json;
 
 use dogs::metric_logger::MetricLogger;
@@ -39,6 +43,7 @@ use dogs::tree_search::algo::beam_search::create_iterative_beam_search;
 use dogs::tree_search::decorators::pruning::PruningDecorator;
 use dogs::tree_search::decorators::stats::StatTsDecorator;
 // use dogs::treesearch::decorators::bounding::BoundingDecorator;
+
 
 mod pfsp;
 mod fflowtime;
@@ -73,12 +78,10 @@ N:Clone {
     // export statistics to file
     if let Some(f) = perf_file {
         let mut res = json!({});
-        res["inst"] = json!(inst_name);
-        res["algo"] = json!(algo_name);
-        res["stats_pareto"] = space.borrow().get_pareto_diagram();
-        res["stats"] = json!({});
-        space.borrow().export_statistics(&mut res["stats"]);
-        res["is_optimal"] = json!(ts.is_optimal());
+        res["inst"]["name"] = json!(inst_name);
+        res["IBS"]["algo_name"] = json!(algo_name);
+        space.borrow().json_statistics(&mut res["search_space"]);
+        ts.json_statistics(&mut res["IBS"]);
         let mut file = match File::create(f.as_str()) {
             Err(why) => panic!("couldn't create {}: {}", f, why),
             Ok(file) => file
@@ -90,88 +93,8 @@ N:Clone {
 }
 
 fn main() {
-    let main_args = App::new("Discrete Optimization Global Search: solving the permutation flowshop")
-        .version("1.0")
-        .author("Luc Libralesso <libralesso.l@gmail.com>")
-        .about("Iterative beam search algorithms for the permutation flowshop implementation")
-        .arg(
-            Arg::with_name("instance")
-                .short("i")
-                .value_name("INSTANCE_FILE")
-                .help("permutation flowshop instance file")
-                .required(true)
-        )
-        .arg(
-            Arg::with_name("time")
-                .short("t")
-                .value_name("TIME")
-                .help("time in seconds allowed")
-                .required(true)
-        )
-        .arg(
-            Arg::with_name("solution")
-                .short("s")
-                .value_name("SOLUTION_FILE")
-                .help("where to print the best solution found")
-        )
-        .arg(
-            Arg::with_name("perf")
-                .short("p")
-                .value_name("SOLUTION_FILE")
-                .help("where to print the performance statistics")
-        )
-        .subcommand(
-            SubCommand::with_name("f_flowtime")
-                .about("solves the flowtime minimization using a forward search")
-                .version("1.0")
-                .author("Luc Libralesso <libralesso.l@gmail.com>")
-                .arg(
-                    Arg::with_name("guide")
-                        .short("g")
-                        .value_name("GUIDE")
-                        .help("guide to use (values:[bound, idle, alpha, walpha, walphaold]")
-                        .required(true)
-                )
-        )
-        .subcommand(
-            SubCommand::with_name("neh_makespan")
-                .about("solves the flowtime minimization using a NEH-based search")
-                .version("1.0")
-                .author("Luc Libralesso <libralesso.l@gmail.com>")
-                .arg(
-                    Arg::with_name("guide")
-                        .short("g")
-                        .value_name("GUIDE")
-                        .help("guide to use (values:[bound, ff]")
-                        .required(true)
-                )
-        )
-        .subcommand(
-            SubCommand::with_name("fb_makespan")
-                .about("solves the makespan minimization using a bidirectional search")
-                .version("1.0")
-                .author("Luc Libralesso <libralesso.l@gmail.com>")
-                .arg(
-                    Arg::with_name("guide")
-                        .short("g")
-                        .value_name("GUIDE")
-                        .help("guide to use (values:[bound, idle, alpha, walpha, gap]")
-                        .required(true)
-                )
-                .arg(
-                    Arg::with_name("branching")
-                        .short("b")
-                        .value_name("BRANCHING")
-                        .help("branching-scheme to use (values:[forward, backward, bi_alt, bi_min]")
-                        .required(true)
-                )
-                .arg(
-                    Arg::with_name("localsearch")
-                        .short("l")
-                        .help("use local-search (insertion neighborhood)")
-                )
-        )
-        .get_matches();
+    let yaml = load_yaml!("main_args.yml");
+    let main_args = App::from_yaml(yaml).get_matches();
     let inst_filename = main_args.value_of("instance").unwrap();
     let t:f32 = main_args.value_of("time").unwrap().parse::<f32>().unwrap();
     let sol_file: Option<String> = match main_args.value_of("solution") {
@@ -198,18 +121,18 @@ fn main() {
             "idle" => fflowtime::Guide::Idle,
             "alpha" => fflowtime::Guide::Alpha,
             _ => {
-                panic!("unknown guide (possible values: [bound, idle, alpha, walpha, walphaold]")
+                panic!("unknown guide (possible values: [bound, idle, alpha]")
             }
         };
         println!(" ============== Forward Flowtime(g={:?}) ==============\n", guide);
         run_search_tree(
-            // PruningDecorator::new(
+            PruningDecorator::new(
                 fflowtime::ForwardSearch::new(
                     inst_filename,
                     guide.clone(),
                     sol_file.clone(),
                 )
-            // )
+            )
             , t, perf_file.clone(), inst_filename, format!("IBS_forw_{:?}", guide)
         );
     }
@@ -251,18 +174,13 @@ fn main() {
                 panic!("unknown branching (possible values: [forward, bi_alt, bi_min]")
             }
         };
-        let use_ls = matches!(branching_args.occurrences_of("localsearch"), 1);
-        println!(" Bi-directionnal Makespan (g={:?}, b={:?}, l:{})\n", guide, branching, use_ls);
-        let mut algo_name:String = format!("IBS_{:?}_{:?}", branching, guide);
-        if use_ls {
-            algo_name += "_ls";
-        }
+        let algo_name:String = format!("IBS_{:?}_{:?}", branching, guide);
         run_search_tree(
             fbmakespan::FBMakespan::new(
                 inst_filename,
                 guide,
                 branching,
-                use_ls,
+                false,
                 sol_file,
             ), t, perf_file, inst_filename, algo_name
         );
