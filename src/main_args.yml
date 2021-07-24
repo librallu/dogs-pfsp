@@ -36,6 +36,7 @@ subcommands:
         args:
             - guide:
                 short: g
+                long: guide
                 help: guide to use
                 value_name: GUIDE
                 takes_value: true
@@ -50,6 +51,7 @@ subcommands:
         args:
             - guide:
                 short: g
+                long: guide
                 help: guide to use
                 value_name: GUIDE
                 takes_value: true
@@ -63,6 +65,7 @@ subcommands:
         args:
             - guide:
                 short: g
+                long: guide
                 help: guide to use
                 value_name: GUIDE
                 takes_value: true
@@ -76,6 +79,7 @@ subcommands:
                   - combined
             - branching:
                 short: b
+                long: branching
                 help: branching-scheme to use
                 value_name: BRANCHING
                 takes_value: true
