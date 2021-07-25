@@ -133,7 +133,7 @@ fn main() {
                     sol_file.clone(),
                 )
             )
-            , t, perf_file.clone(), inst_filename, format!("IBS_forw_{:?}", guide)
+            , t, perf_file.clone(), inst_filename, format!("IBS_forward_{:?}", guide)
         );
     }
     if let Some(branching_args) = main_args.subcommand_matches("neh_makespan") {
