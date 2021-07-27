@@ -1,0 +1,30 @@
+{
+    "experiment_name":   "taillard_makespan",
+    "nb_parallel_tasks": 4,
+    "instance_list":     "../insts/taillard_makespan_test.csv",
+    "output_prefix":     ".",
+    "solvers": [
+        {
+            "name": "IBS",
+            "exe_path": "../target/release/dogs-pfsp",
+            "params": [
+                {"name":"instance", "values":["#{instance_path}"]},
+                {"name":"time",     "values":["#{time_limit}"]},
+                {"name":"perf",     "values":["#{file_prefix}.stats.json"]},
+                {"name":"solution", "values":["#{file_prefix}.sol"]},
+                {"name":"",         "values":["fb_makespan"]},
+                {"name":"branching","values":["forward", "bi_min"]},
+                {"name":"guide",    "values":["bound", "idle", "alpha", "walpha", "gap"]}
+            ]
+        },
+        {
+            "name": "IGbob",
+            "exe_path": "../igbob/igbob.exe",
+            "params": [
+                {"name":"", "values":["#{instance_path}"]},
+                {"name":"", "values":[30,45,90]},
+                {"name":"", "values":["#{file_prefix}.stats.json"]}
+            ]
+        }
+    ]
+}
