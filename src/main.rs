@@ -80,8 +80,9 @@ N:Clone {
         let mut res = json!({});
         res["inst"]["name"] = json!(inst_name);
         res["IBS"]["algo_name"] = json!(algo_name);
-        space.borrow().json_statistics(&mut res["search_space"]);
+        space.borrow().json_statistics(&mut res);
         ts.json_statistics(&mut res["IBS"]);
+        res["is_optimal"] = json!(ts.is_optimal());
         let mut file = match File::create(f.as_str()) {
             Err(why) => panic!("couldn't create {}: {}", f, why),
             Ok(file) => file
