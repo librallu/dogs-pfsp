@@ -16,5 +16,8 @@
                 {"name":"guide",    "values":["bound", "idle", "alpha"]}
             ]
         }
-    ]
+    ],
+    "analysis": {
+        "arpd_ref": "./flowtime_taillard_reference.csv"
+    }
 }
