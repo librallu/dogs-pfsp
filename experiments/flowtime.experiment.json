@@ -72,11 +72,24 @@
         ],
         "custom_pareto_diagrams": [
             {
+                "name": "IBS_alpha_comp",
                 "algorithms": [
                     "IBS_forward_alpha",
                     "ALGirtct60", "ALGirtct120", "ALGirtct240",
-                    "IGA60", "IGA120", "IGA240"
+                    "IGA60", "IGA120", "IGA240", "MRSILS", "BSCH"
+                ],
+                "classes": ["200_20", "200_10", "100_20", "100_10", "100_5", "50_20",
+                    "50_10", "50_5", "20_20", "20_10", "20_5"
                 ]
+            },
+            {
+                "name": "IBS_alpha_comp",
+                "algorithms": [
+                    "IBS_forward_alpha",
+                    "ALGirtct60", "ALGirtct120", "ALGirtct240",
+                    "IGA60", "IGA240", "MRSILS", "BSCH"
+                ],
+                "classes": ["500_20"]
             }
         ],
         "custom_ARPD_tables": [
