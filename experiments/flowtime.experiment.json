@@ -19,6 +19,17 @@
     ],
     "analysis": {
         "arpd_ref": "./flowtime_taillard_reference.csv",
+        "external_best_known_results": [
+            {
+                "name": "ALGirtct",
+                "file": "./flowtime_taillard_reference.csv",
+                "column": "ALGirtct"
+            },{
+                "name": "shake_ls",
+                "file": "./flowtime_taillard_reference.csv",
+                "column": "shake_ls"
+            }
+        ],
         "external_arpd_results": [
             {
                 "name": "MRSILS",
@@ -92,7 +103,13 @@
                 "classes": ["500_20"]
             }
         ],
-        "custom_ARPD_tables": [
+        "custom_best_known_tables": [
+            {
+                "name": "comparison_with_sota",
+                "algorithms": ["IBS_forward_alpha", "ALGirtct", "shake_ls"],
+                "time_to_best_known": false,
+                "time_to_opt": false
+            }
         ]
     }
 }
