@@ -1,0 +1,7 @@
+{
+	"inst_name":"/home/decrypt/dogs/dogs-pfsp/insts/Large/VFR700_20_9_Gap.txt",
+	"time_searched":210.000000,
+	"average_primal":"36328.800000",
+	"average_nb_iters":"10064.100000",
+	"primal_list": [36322, 36328, 36321, 36333, 36328, 36328, 36325, 36335, 36325, 36343]
+}
