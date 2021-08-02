@@ -1,0 +1,7 @@
+{
+	"inst_name":"/home/decrypt/dogs/dogs-pfsp/insts/Taillard/tai500_20_9.txt",
+	"time_searched":225.000000,
+	"average_primal":"26543.200000",
+	"average_nb_iters":"29036.600000",
+	"primal_list": [26553, 26558, 26537, 26542, 26546, 26534, 26533, 26539, 26553, 26537]
+}
