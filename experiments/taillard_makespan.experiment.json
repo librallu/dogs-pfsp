@@ -1,6 +1,7 @@
 {
     "experiment_name":   "taillard_makespan",
     "nb_parallel_tasks": 20,
+    "fallback_threads": 4,
     "instance_list":     "../insts/taillard_makespan.csv",
     "output_prefix":     ".",
     "solvers": [
