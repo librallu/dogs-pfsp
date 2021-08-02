@@ -16,5 +16,100 @@
                 {"name":"guide",    "values":["bound", "idle", "alpha"]}
             ]
         }
-    ]
+    ],
+    "analysis": {
+        "arpd_ref": "./flowtime_taillard_reference.csv",
+        "external_best_known_results": [
+            {
+                "name": "ALGirtct",
+                "file": "./flowtime_taillard_reference.csv",
+                "column": "ALGirtct"
+            },{
+                "name": "shake_ls",
+                "file": "./flowtime_taillard_reference.csv",
+                "column": "shake_ls"
+            }
+        ],
+        "external_arpd_results": [
+            {
+                "name": "MRSILS",
+                "file": "./flowtime_taillard_ARPD.csv",
+                "time": "time_MRSILS",
+                "arpd": "ARPD_MRSILS",
+                "cpu_regularization_factor": 1.0
+            },{
+                "name": "BSCH",
+                "file": "./flowtime_taillard_ARPD.csv",
+                "time": "time_BSCH",
+                "arpd": "ARPD_BSCH",
+                "cpu_regularization_factor": 1.0
+            },{
+                "name": "ALGirtct60",
+                "file": "./flowtime_taillard_ARPD.csv",
+                "time": "time_ALGirtct",
+                "arpd": "ALGirtct60",
+                "cpu_regularization_factor": 0.27
+            },{
+                "name": "ALGirtct120",
+                "file": "./flowtime_taillard_ARPD.csv",
+                "time": "time_ALGirtct",
+                "arpd": "ALGirtct120",
+                "cpu_regularization_factor": 0.55
+            },{
+                "name": "ALGirtct240",
+                "file": "./flowtime_taillard_ARPD.csv",
+                "time": "time_ALGirtct",
+                "arpd": "ALGirtct240",
+                "cpu_regularization_factor": 1.09
+            },{
+                "name": "IGA60",
+                "file": "./flowtime_taillard_ARPD.csv",
+                "time": "time_ALGirtct",
+                "arpd": "IGA60",
+                "cpu_regularization_factor": 0.27
+            },{
+                "name": "IGA120",
+                "file": "./flowtime_taillard_ARPD.csv",
+                "time": "time_ALGirtct",
+                "arpd": "IGA120",
+                "cpu_regularization_factor": 0.55
+            },{
+                "name": "IGA240",
+                "file": "./flowtime_taillard_ARPD.csv",
+                "time": "time_ALGirtct",
+                "arpd": "IGA240",
+                "cpu_regularization_factor": 1.09
+            }
+        ],
+        "custom_pareto_diagrams": [
+            {
+                "name": "IBS_alpha_comp",
+                "algorithms": [
+                    "IBS_forward_alpha",
+                    "ALGirtct60", "ALGirtct120", "ALGirtct240",
+                    "IGA60", "IGA120", "IGA240", "MRSILS", "BSCH"
+                ],
+                "classes": ["200_20", "200_10", "100_20", "100_10", "100_5", "50_20",
+                    "50_10", "50_5", "20_20", "20_10", "20_5"
+                ]
+            },
+            {
+                "name": "IBS_alpha_comp",
+                "algorithms": [
+                    "IBS_forward_alpha",
+                    "ALGirtct60", "ALGirtct120", "ALGirtct240",
+                    "IGA60", "IGA240", "MRSILS", "BSCH"
+                ],
+                "classes": ["500_20"]
+            }
+        ],
+        "custom_best_known_tables": [
+            {
+                "name": "comparison_with_sota",
+                "algorithms": ["IBS_forward_alpha", "ALGirtct", "shake_ls"],
+                "time_to_best_known": false,
+                "time_to_opt": false
+            }
+        ]
+    }
 }
