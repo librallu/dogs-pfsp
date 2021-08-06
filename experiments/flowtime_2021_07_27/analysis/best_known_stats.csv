@@ -1,0 +1,4 @@
+solver,nb_instances,nb_better_bk,nb_strictly_better_bk,nb_proved_optimal
+IBS_forward_bound,120,15,0,0
+IBS_forward_idle,120,2,0,0
+IBS_forward_alpha,120,97,58,0

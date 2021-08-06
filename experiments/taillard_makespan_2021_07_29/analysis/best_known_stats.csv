@@ -1,0 +1,14 @@
+solver,nb_instances,nb_better_bk,nb_strictly_better_bk,nb_proved_optimal
+IBS_forward_bound,120,4,0,1
+IBS_bi_min_bound,120,71,0,68
+IBS_forward_idle,120,14,0,8
+IBS_bi_min_idle,120,36,0,36
+IBS_forward_alpha,120,12,0,5
+IBS_bi_min_alpha,120,36,0,37
+IBS_forward_walpha,120,0,0,0
+IBS_bi_min_walpha,120,34,0,31
+IBS_forward_gap,120,0,0,1
+IBS_bi_min_gap,120,83,5,79
+IGbob_30,120,63,0,0
+IGbob_45,120,63,0,0
+IGbob_90,120,64,0,0
