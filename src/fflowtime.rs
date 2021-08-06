@@ -171,7 +171,7 @@ impl TotalNeighborGeneration<Node> for ForwardSearch {
 
 impl ForwardSearch {
     pub fn new(filename: &str, guide:Guide, solution_filename:Option<String>) -> Self {
-        let inst = Instance::new(&filename).unwrap();
+        let inst = Instance::new(filename).unwrap();
         Self {
             inst,
             guide,

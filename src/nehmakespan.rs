@@ -186,7 +186,7 @@ impl TotalNeighborGeneration<NEHNode> for NEHSearch {
 
 impl NEHSearch {
     pub fn new(filename: &str, tb: Guide) -> Self {
-        let inst = Instance::new(&filename).unwrap();
+        let inst = Instance::new(filename).unwrap();
         // sort ordered_jobs by non-increasing sum of processing times
         let n = inst.nb_jobs();
         let m = inst.nb_machines();

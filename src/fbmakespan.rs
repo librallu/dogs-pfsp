@@ -303,7 +303,7 @@ impl TotalNeighborGeneration<FBNode> for FBMakespan {
 
 impl FBMakespan {
     pub fn new(filename: &str, guide:Guide, branchingscheme:BranchingScheme, use_ls:bool, solution_filename:Option<String>) -> Self {
-        let inst = Instance::new(&filename).unwrap();
+        let inst = Instance::new(filename).unwrap();
         Self {
             inst,
             best_val: None,
@@ -508,7 +508,7 @@ impl FBMakespan {
                 match res.backward_walpha {
                     None => OrderedFloat(1e31),
                     Some(wb) => {
-                        let alpha = self.compute_alpha(&res);
+                        let alpha = self.compute_alpha(res);
                         OrderedFloat(
                             alpha      * (res.bound as f64) +
                             (1.-alpha) * (wf + wb) * (res.bound as f64)
