@@ -1,4 +1,3 @@
-use std::cmp::max;
 use ordered_float::OrderedFloat;
 
 use dogs::search_space::{SearchSpace, TotalNeighborGeneration, GuidedSpace, ToSolution};
@@ -139,6 +138,7 @@ impl TotalNeighborGeneration<NEHNode> for NEHSearch {
         let k = node.inserted_jobs.len();  // kth job to be inserted in the partial solution
         let j = self.ordered_jobs[k];  // job to be inserted
         let m = self.inst.nb_machines();
+        // update the h-cost
         let mut new_bound_remaining = node.bound_remaining;
         if self.inst.better_on_first_machine(j) {
             new_bound_remaining -= self.inst.p(j,0);
@@ -163,10 +163,9 @@ impl TotalNeighborGeneration<NEHNode> for NEHSearch {
             for l in 0..k+1 {  // l being the position to insert the job
                 let mut inserted = node.inserted_jobs.clone();
                 inserted.insert(l,j);
-                let mut bound:Time = eqf.f[0][l] + eqf.q[0][l];
-                for i in 1..m {
-                    bound = max(bound, eqf.f[i as usize][l]+eqf.q[i as usize][l]);
-                }
+                let bound:Time = (0..m).map(|i|
+                    eqf.f[i as usize][l] + eqf.q[i as usize][l]
+                ).max().unwrap();
                 let idletime = match self.guide {
                     Guide::Bound => None,
                     _ => Some(compute_idle_time(&self.inst, &node.inserted_jobs, l, &eqf)),
@@ -185,26 +184,24 @@ impl TotalNeighborGeneration<NEHNode> for NEHSearch {
 
 
 impl NEHSearch {
-    pub fn new(filename: &str, tb: Guide) -> Self {
+    pub fn new(filename: &str, guide: Guide) -> Self {
         let inst = Instance::new(filename).unwrap();
         // sort ordered_jobs by non-increasing sum of processing times
         let n = inst.nb_jobs();
         let m = inst.nb_machines();
-        let mut ordered_jobs:Vec<JobId> = Vec::new();
-        for i in 0..n {
-            ordered_jobs.push(i);
-        }
-        let mut sum_p = vec![0;n as usize];
+        let mut ordered_jobs:Vec<JobId> = (0..n).collect();
+        let mut sum_p:Vec<Time> = vec![0;n as usize];
         for i in 0..m {
-            sum_p[i as usize] = inst.sum_p(i);
+            for j in 0..n {
+                sum_p[j as usize] += inst.p(j,i);
+            }
         }
-        ordered_jobs.sort_by_key(|a| { sum_p[*a as usize] });
-        ordered_jobs.reverse();
+        ordered_jobs.sort_by_key(|a| { -sum_p[*a as usize] });
         // return constructed search space
         Self {
             inst,
             ordered_jobs,
-            guide: tb,
+            guide,
         }
     }
 
