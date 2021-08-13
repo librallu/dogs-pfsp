@@ -1,4 +1,6 @@
 use ordered_float::OrderedFloat;
+use std::fs::File;
+use std::io::Write;
 
 use dogs::search_space::{SearchSpace, TotalNeighborGeneration, GuidedSpace, ToSolution};
 
@@ -27,8 +29,11 @@ pub struct NEHNode {
 
 pub struct NEHSearch {
     inst: Instance,
-    ordered_jobs: Vec<JobId>,  // ordered jobs according to the ordering heuristic
+    /// ordered jobs according to the ordering heuristic
+    ordered_jobs: Vec<JobId>,
     guide: Guide,
+    /// if it exists, the path to file where the solution will be contained
+    solution_file: Option<String>,
 }
 
 
@@ -80,21 +85,21 @@ impl SearchSpace<NEHNode, Time> for NEHSearch {
         //         }
         //     }
         // }
-        // // write solution in a file
-        // match &self.solution_file {
-        //     None => {},
-        //     Some(filename) => {
-        //         let mut file = match File::create(filename) {
-        //             Err(why) => panic!("couldn't create {}: {}", filename, why),
-        //             Ok(file) => file
-        //         };
-        //         let sol = &local_state.s;
-        //         for j in sol {
-        //             write!(&mut file, "{} ", j).unwrap();
-        //         }
-        //         writeln!(&mut file, "\n").unwrap();
-        //     }
-        // }
+        // write solution in a file
+        match &self.solution_file {
+            None => {},
+            Some(filename) => {
+                let mut file = match File::create(filename) {
+                    Err(why) => panic!("couldn't create {}: {}", filename, why),
+                    Ok(file) => file
+                };
+                let sol = &local_state.s;
+                for j in sol {
+                    write!(&mut file, "{} ", j).unwrap();
+                }
+                writeln!(&mut file, "\n").unwrap();
+            }
+        }
         NEHNode {
             inserted_jobs: local_state.s, // already inserted jobs (partial sequence)
             bound: local_state.v,
@@ -184,7 +189,7 @@ impl TotalNeighborGeneration<NEHNode> for NEHSearch {
 
 
 impl NEHSearch {
-    pub fn new(filename: &str, guide: Guide) -> Self {
+    pub fn new(filename: &str, guide: Guide, solution_file:Option<String>) -> Self {
         let inst = Instance::new(filename).unwrap();
         // sort ordered_jobs by non-increasing sum of processing times
         let n = inst.nb_jobs();
@@ -202,6 +207,7 @@ impl NEHSearch {
             inst,
             ordered_jobs,
             guide,
+            solution_file
         }
     }
 

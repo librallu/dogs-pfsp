@@ -505,10 +505,20 @@ impl FBMakespan {
         match res.forward_walpha {
             None => OrderedFloat(1e31),
             Some(wf) => {
+                let alpha = self.compute_alpha(res);
                 match res.backward_walpha {
-                    None => OrderedFloat(1e31),
+                    None => {
+                        match self.branchingscheme {
+                            BranchingScheme::Forward => {
+                                OrderedFloat(
+                                    alpha      * (res.bound as f64) +
+                                    (1.-alpha) * wf * (res.bound as f64)
+                                )
+                            },
+                            _ => OrderedFloat(1e31)
+                        }
+                    }
                     Some(wb) => {
-                        let alpha = self.compute_alpha(res);
                         OrderedFloat(
                             alpha      * (res.bound as f64) +
                             (1.-alpha) * (wf + wb) * (res.bound as f64)
@@ -528,14 +538,22 @@ impl FBMakespan {
                         OrderedFloat(1e31)
                     }
                     Some(wf) => {
+                        // gap close to 1 : bound tight
+                        // gap small (close to 0) : bound not very tight
+                        let gap:f64 = ((v-res.bound) as f64)/(v as f64);
                         match res.backward_walpha {
                             None => {
-                                OrderedFloat(1e31)
+                                match self.branchingscheme {
+                                    BranchingScheme::Forward => {
+                                        OrderedFloat(
+                                            (res.bound as f64)*(1./gap) + 
+                                            wf*gap
+                                        )
+                                    },
+                                    _ => OrderedFloat(1e31)
+                                }
                             }
                             Some(wb) => {
-                                let gap:f64 = ((v-res.bound) as f64)/(v as f64);
-                                // gap close to 1 : bound tight
-                                // gap small (close to 0) : bound not very tight
                                 OrderedFloat(
                                     (res.bound as f64)*(1./gap) + 
                                     (wf+wb)*gap

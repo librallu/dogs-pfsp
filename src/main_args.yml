@@ -59,6 +59,7 @@ subcommands:
                 possible_values:
                   - bound
                   - ff
+                  - alpha
     - fb_makespan:
         about: solves the makespan minimization using a bidirectional tree search
         version: "1.0"

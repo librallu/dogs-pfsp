@@ -151,7 +151,7 @@ fn main() {
             PruningDecorator::new(nehmakespan::NEHSearch::new(
                 inst_filename,
                 guide.clone(),
-                // sol_file.clone(),
+                sol_file.clone(),
             )), t, perf_file.clone(), inst_filename, format!("IBS_NEH_{:?}", guide)
         );
     }

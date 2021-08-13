@@ -19,6 +19,7 @@
         }
     ],
     "analysis": {
+        "arpd_comp_only": ["IBS_alpha"],
         "arpd_ref": "./flowtime_taillard_reference.csv",
         "external_best_known_results": [
             {
