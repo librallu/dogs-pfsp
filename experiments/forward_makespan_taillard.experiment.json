@@ -1,0 +1,58 @@
+{
+    "experiment_name":   "taillard_makespan",
+    "nb_parallel_tasks": 20,
+    "fallback_threads": 4,
+    "instance_list":     "../insts/taillard_makespan.csv",
+    "output_prefix":     ".",
+    "solvers": [
+        {
+            "name": "IBS",
+            "exe_path": "../target/release/dogs-pfsp",
+            "params": [
+                {"name":"instance", "values":["#{instance_path}"]},
+                {"name":"time",     "values":["#{time_limit}"]},
+                {"name":"perf",     "values":["#{file_prefix}.stats.json"]},
+                {"name":"solution", "values":["#{file_prefix}.sol"]},
+                {"name":"",         "values":["fb_makespan"]},
+                {"name":"branching","values":["forward", "none"]},
+                {"name":"guide",    "values":["walpha", "gap"]}
+            ]
+        }
+    ],
+    "analysis": {
+        "arpd_comp_only": ["IBS_bi_min_walpha", "IBS_bi_min_gap"],
+        "custom_arpd_tables": [
+            {
+                "algos": ["IGbob_30", "IBS_bi_min_walpha", "IBS_bi_min_gap"],
+                "cpu_regularization_factor": 0.333
+            },{
+                "algos": ["IGbob_45", "IBS_bi_min_walpha", "IBS_bi_min_gap"],
+                "cpu_regularization_factor": 0.5
+            },{
+                "algos": ["IGbob_90", "IBS_bi_min_walpha", "IBS_bi_min_gap"],
+                "cpu_regularization_factor": 1.0
+            }
+        ],
+        "external_arpd_results": [
+            {
+                "name": "IGirms_60",
+                "file": "./taillard_makespan_ARPD.csv",
+                "time": "time",
+                "arpd": "IGirms_60",
+                "cpu_regularization_factor": 0.27
+            },{
+                "name": "IGirms_120",
+                "file": "./taillard_makespan_ARPD.csv",
+                "time": "time",
+                "arpd": "IGirms_120",
+                "cpu_regularization_factor": 0.55
+            },{
+                "name": "IGirms_240",
+                "file": "./taillard_makespan_ARPD.csv",
+                "time": "time",
+                "arpd": "IGirms_240",
+                "cpu_regularization_factor": 1.09
+            }
+        ]
+    }
+}
