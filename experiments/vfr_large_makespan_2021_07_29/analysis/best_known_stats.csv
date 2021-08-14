@@ -5,7 +5,7 @@ IBS_forward_idle,240,0,0,0
 IBS_bi_min_idle,240,0,0,0
 IBS_forward_alpha,240,1,1,0
 IBS_bi_min_alpha,240,0,0,0
-IBS_forward_walpha,240,0,0,0
+IBS_forward_walpha,240,15,15,0
 IBS_bi_min_walpha,240,109,109,0
 IBS_forward_gap,240,0,0,0
 IBS_bi_min_gap,240,12,2,31

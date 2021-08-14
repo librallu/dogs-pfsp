@@ -6,7 +6,7 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use std::cmp::max;
 
-use dogs::search_space::{SearchSpace, TotalNeighborGeneration, GuidedSpace, ToSolution};
+use dogs::search_space::{SearchSpace, TotalNeighborGeneration, GuidedSpace, ToSolution, BoundedDistanceSpace};
 use dogs::data_structures::decision_tree::DecisionTree;
 use dogs::data_structures::lazy_clonable::LazyClonable;
 
@@ -48,7 +48,7 @@ pub struct Node {
     nb_added: usize,
     /// prefix bound evaluation (g-cost)
     bound: Time,
-    /// h-cost estimate
+    /// f-cost estimate
     fcost: Time,
     /// total idle time of the given node
     idletime: Time,
@@ -71,7 +71,7 @@ pub struct ForwardSearch {
 impl GuidedSpace<Node, OrderedFloat<f64>> for ForwardSearch {
     fn guide(&mut self, node: &Node) -> OrderedFloat<f64> {
         match self.guide {
-            Guide::Bound => { OrderedFloat(node.bound as f64) },
+            Guide::Bound => { OrderedFloat(self.bound(node) as f64) },
             Guide::Idle => { OrderedFloat(node.idletime as f64) },
             Guide::Alpha => {
                 let alpha = self.compute_alpha(node);
@@ -123,7 +123,7 @@ impl SearchSpace<Node, Time> for ForwardSearch {
 
     fn g_cost(&mut self, node: &Node) -> Time { node.bound }
 
-    fn bound(&mut self, node: &Node) -> Time { node.fcost }
+    fn bound(&mut self, node: &Node) -> Time { node.bound }
 
     fn goal(&mut self, node: &Node) -> bool { node.nb_added == self.inst.nb_jobs() as usize }
 
@@ -245,3 +245,12 @@ impl ForwardSearch {
     }
 }
 
+impl BoundedDistanceSpace<Node> for ForwardSearch {
+    fn maximum_root_distance(&self) -> usize {
+        self.inst.nb_jobs() as usize
+    }
+
+    fn distance_from_root(&self, n:&Node) -> usize {
+        n.nb_added
+    }
+}

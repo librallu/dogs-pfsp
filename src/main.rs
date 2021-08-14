@@ -42,6 +42,7 @@ use dogs::search_space::{SearchSpace,GuidedSpace,TotalNeighborGeneration};
 use dogs::tree_search::algo::beam_search::create_iterative_beam_search;
 use dogs::tree_search::decorators::pruning::PruningDecorator;
 use dogs::tree_search::decorators::stats::StatTsDecorator;
+// use dogs::tree_search::decorators::guide_with_bound::GuideWithBoundDecorator;
 // use dogs::tree_search::decorators::bounding::BoundingDecorator;
 
 
@@ -183,7 +184,8 @@ fn main() {
                 branching,
                 false,
                 sol_file,
-            ), t, perf_file, inst_filename, algo_name
+            )
+            , t, perf_file, inst_filename, algo_name
         );
     }
 

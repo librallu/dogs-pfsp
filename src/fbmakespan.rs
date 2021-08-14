@@ -6,7 +6,7 @@ use std::io::Write;
 use std::rc::Rc;
 use std::cell::RefCell;
 
-use dogs::search_space::{SearchSpace, TotalNeighborGeneration, GuidedSpace, ToSolution};
+use dogs::search_space::{SearchSpace, TotalNeighborGeneration, GuidedSpace, ToSolution, BoundedDistanceSpace};
 use dogs::data_structures::decision_tree::DecisionTree;
 use dogs::data_structures::lazy_clonable::LazyClonable;
 
@@ -567,3 +567,12 @@ impl FBMakespan {
     }
 }
 
+impl BoundedDistanceSpace<FBNode> for FBMakespan {
+    fn maximum_root_distance(&self) -> usize {
+        self.inst.nb_jobs() as usize
+    }
+
+    fn distance_from_root(&self, n:&FBNode) -> usize {
+        n.nb_added
+    }
+}
