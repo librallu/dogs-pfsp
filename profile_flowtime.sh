@@ -1,1 +1,0 @@
-cargo build --release && cargo flamegraph -- -i insts/Taillard/tai500_20_9.txt -t 30 f_flowtime -g alpha
