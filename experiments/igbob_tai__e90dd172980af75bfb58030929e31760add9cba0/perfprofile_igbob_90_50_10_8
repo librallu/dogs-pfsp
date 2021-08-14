@@ -1,8 +1,0 @@
-{
-	"instname":"../insts/Taillard/tai50_10_8.txt",
-	"t":"90",
-	"stoppingcriterion":"22.500000",
-	"avgmakespan":"2901.500000",
-	"avgiters":"53768.700000",
-	"objlist": [2901, 2902, 2901, 2902, 2900, 2902, 2902, 2902, 2901, 2902]
-}

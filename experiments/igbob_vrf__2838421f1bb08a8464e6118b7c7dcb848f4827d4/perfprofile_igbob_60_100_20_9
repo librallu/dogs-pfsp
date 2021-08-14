@@ -1,8 +1,0 @@
-{
-	"instname":"../insts/Large/VFR100_20_9_Gap.txt",
-	"t":"60",
-	"stoppingcriterion":"60.000000",
-	"avgmakespan":"6352.400000",
-	"avgiters":"14935.900000",
-	"objlist": [6356, 6340, 6353, 6349, 6353, 6354, 6350, 6356, 6350, 6363]
-}

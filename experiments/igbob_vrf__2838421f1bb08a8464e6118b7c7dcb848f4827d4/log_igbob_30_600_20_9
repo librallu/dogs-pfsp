@@ -1,4 +1,0 @@
-##### LOG STDOUT:
-b'### IGBOB: running experiments for: (../insts/Large/VFR600_20_9_Gap.txt,30)\ncomputation time 30*n*m/2 = 180.000000\nrun 0 objective:\t31561\nrun 1 objective:\t31543\nrun 2 objective:\t31535\nrun 3 objective:\t31617\nrun 4 objective:\t31589\nrun 5 objective:\t31585\nrun 6 objective:\t31543\nrun 7 objective:\t31521\nrun 8 objective:\t31552\nrun 9 objective:\t31589\nEND IG_BoB\navg makespan:\t31563.500000\navg iterations:\t1946.300000\n'
-##### LOG STDERR:
-None
