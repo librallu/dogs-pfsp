@@ -28,6 +28,7 @@ use std::fs::File;
 use std::io::Write;
 use std::rc::Rc;
 
+use dogs::tree_search::decorators::bounding::BoundingDecorator;
 use ordered_float::OrderedFloat;
 
 #[macro_use]
@@ -46,14 +47,22 @@ use dogs::tree_search::decorators::stats::StatTsDecorator;
 // use dogs::tree_search::decorators::bounding::BoundingDecorator;
 
 
-mod pfsp;
-mod fflowtime;
-mod fbmakespan;
-mod nehhelper;
-mod nehmakespan;
+use dogs_pfsp::pfsp;
+use dogs_pfsp::fflowtime;
+use dogs_pfsp::fbmakespan;
+// use dogs_pfsp::nehhelper;
+use dogs_pfsp::nehmakespan;
 // mod expandmakespan;
 
-fn run_search_tree<T,N>(space:T, t:f32, perf_file: Option<String>, inst_name: &str, algo_name:String) where
+use pfsp::Instance;
+
+fn run_search_tree<T,N>(
+    original_space:T,
+    t:f32,
+    perf_file: Option<String>,
+    inst_name: &str,
+    algo_name:String
+) where
 T:SearchSpace<N,pfsp::Time>+GuidedSpace<N,OrderedFloat<f64>>+TotalNeighborGeneration<N>,
 N:Clone {
     // create logger and stopping criterion
@@ -62,9 +71,9 @@ N:Clone {
     // create search space
     let space = Rc::new(RefCell::new(
         StatTsDecorator::new(
-            // BoundingDecorator::new(
-                space
-            // ).bind_logger(Rc::downgrade(&logger))
+            BoundingDecorator::new(
+                original_space
+            ).bind_logger(Rc::downgrade(&logger))
         )
         .bind_logger(Rc::downgrade(&logger)),
     ));
@@ -94,10 +103,16 @@ N:Clone {
     }
 }
 
+/// Reads an instance from a file
+pub fn read_inst(filename:&str) -> Rc<Instance> {
+    Rc::new(Instance::new(filename).unwrap())
+}
+
 fn main() {
     let yaml = load_yaml!("main_args.yml");
     let main_args = App::from_yaml(yaml).get_matches();
     let inst_filename = main_args.value_of("instance").unwrap();
+    let inst = read_inst(inst_filename);
     let t:f32 = main_args.value_of("time").unwrap().parse::<f32>().unwrap();
     let sol_file: Option<String> = match main_args.value_of("solution") {
         None => None,
@@ -130,7 +145,7 @@ fn main() {
         run_search_tree(
             PruningDecorator::new(
                 fflowtime::ForwardSearch::new(
-                    inst_filename,
+                    inst.clone(),
                     guide.clone(),
                     sol_file.clone(),
                 )
@@ -150,7 +165,7 @@ fn main() {
         println!(" ============== NEH makespan(g={:?}) ==============\n", guide);
         run_search_tree(
             PruningDecorator::new(nehmakespan::NEHSearch::new(
-                inst_filename,
+                inst.clone(),
                 guide.clone(),
                 sol_file.clone(),
             )), t, perf_file.clone(), inst_filename, format!("IBS_NEH_{:?}", guide)
@@ -179,7 +194,7 @@ fn main() {
         let algo_name:String = format!("IBS_{:?}_{:?}", branching, guide);
         run_search_tree(
             fbmakespan::FBMakespan::new(
-                inst_filename,
+                inst,
                 guide,
                 branching,
                 false,

@@ -25,12 +25,15 @@ pub fn compute_job_positions(joblist:Vec<JobId>) -> Vec<usize> {
  */
 #[derive(Debug)]
 pub struct Eqf {
-      pub e:Vec<Vec<Time>>,
-      pub q:Vec<Vec<Time>>,
-      pub f:Vec<Vec<Time>>,
+    /// earliest completion time
+    pub e:Vec<Vec<Time>>,
+    /// time between the start time and the end of the schedule
+    pub q:Vec<Vec<Time>>,
+    /// completion time
+    pub f:Vec<Vec<Time>>,
 }
 
-/* void calculate_e_q_f(int m,int k, int ** p_ij,int * partial_sequence,int next_job,long int ** e,long int ** q, long int ** f) */
+/// compute the data required for Taillard's acceleration
 pub fn compute_eqf(inst:&Instance, partial_sequence:&[JobId], next_job:JobId) -> Eqf {
       let m:usize = inst.nb_machines() as usize;
       let k:usize = partial_sequence.len();
@@ -114,9 +117,12 @@ pub fn compute_idle_time(inst:&Instance, partial_sequence:&[JobId], pos:usize, e
       res
 }
 
-
+/// State used in local search
+#[derive(Debug)]
 pub struct LocalState {
+    /// current permutation
     pub s:Vec<JobId>,
+    /// time cost (to be minimized)
     pub v:Time
 }
 
@@ -141,8 +147,8 @@ pub fn first_insertion_neighborhood(inst:&Instance, state:&LocalState) -> Option
         let eqf:Eqf = compute_eqf(inst, &s2, job);
         for l in 0..state.s.len() { // all possible new positions
             let mut bound:Time = eqf.f[0][l] + eqf.q[0][l];
-            for i in 1..inst.nb_machines() {
-                bound = max(bound, eqf.f[i as usize][l]+eqf.q[i as usize][l]);
+            for j in 1..inst.nb_machines() {
+                bound = max(bound, eqf.f[j as usize][l]+eqf.q[j as usize][l]);
             }
             if bound < state.v { // if a better solution found, stop there
                 s2.insert(l, job);

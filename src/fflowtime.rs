@@ -12,18 +12,22 @@ use dogs::data_structures::lazy_clonable::LazyClonable;
 
 use crate::pfsp::{JobId, Time, Instance, ProblemObjective, checker};
 
+/// For each machine, the "time-front"
 pub type NodeVec = Vec<Time>;
 
-/**
- * Guide function that helps to choose which node should be explored first
- */
+
+/// Guide function that helps to choose which node should be explored first
 #[derive(Debug, Clone)]
 pub enum Guide {
+    /// minimize the bound only
     Bound,
+    /// minimize the idle-time only
     Idle,
+    /// minimize α.Bound + (1-α).Idle
     Alpha,
 }
 
+///
 #[derive(Debug, Clone)]
 pub enum Decision {
     /// no decision
@@ -32,6 +36,7 @@ pub enum Decision {
     AddForwardSearch(JobId),
 }
 
+/// Part of the search-space node computed only when needed (relatively expensive)
 #[derive(Debug, Clone)]
 pub struct NodeLazyPart {
     /// for each machine, its first forward availability
@@ -42,6 +47,8 @@ pub struct NodeLazyPart {
     decision_tree: Rc<DecisionTree<Decision>>,
 }
 
+
+/// node of the search-space
 #[derive(Debug, Clone)]
 pub struct Node {
     /// nb jobs added
@@ -52,17 +59,16 @@ pub struct Node {
     fcost: Time,
     /// total idle time of the given node
     idletime: Time,
-    /// weighted idle time
-    weightedidle: f64,
     /// last decision
     decision: Decision,
     /// lazy part of the node
     lazy_part: LazyClonable<RefCell<NodeLazyPart>>,
 }
 
+/// Forward search-space
 #[derive(Debug)]
 pub struct ForwardSearch {
-    inst: Instance,
+    inst: Rc<Instance>,
     guide: Guide,
     solution_file: Option<String>, // if it exists, the path to file where the solution will be contained
     decision_tree: Rc<DecisionTree<Decision>>,}
@@ -111,7 +117,6 @@ impl SearchSpace<Node, Time> for ForwardSearch {
             bound: 0,
             fcost: 0,
             idletime: 0,
-            weightedidle: 0.,
             decision: Decision::None,
             lazy_part: LazyClonable::new(RefCell::new(NodeLazyPart {
                 forward_front: vec![0; m],
@@ -170,8 +175,8 @@ impl TotalNeighborGeneration<Node> for ForwardSearch {
 
 
 impl ForwardSearch {
-    pub fn new(filename: &str, guide:Guide, solution_filename:Option<String>) -> Self {
-        let inst = Instance::new(filename).unwrap();
+    /// creates a new search-space
+    pub fn new(inst:Rc<Instance>, guide:Guide, solution_filename:Option<String>) -> Self {
         Self {
             inst,
             guide,
@@ -180,7 +185,7 @@ impl ForwardSearch {
         }
     }
 
-
+    /// computes the lazy part of the node if it does not exist yet
     pub fn compute_lazy_part(&self, node:&mut Node) {
         match node.lazy_part.is_cloned() {
             true => {}  // already computed, do nothing
@@ -207,6 +212,7 @@ impl ForwardSearch {
     }
     
 
+    /// add a job to the partial schedule. Returns a new node.
     pub fn add_job_forward(&self, node:&mut Node, j: JobId) -> Node {
         self.compute_lazy_part(node);  // make sure the lazy part is computed
         let node_lazypart = node.lazy_part.lazy_get();

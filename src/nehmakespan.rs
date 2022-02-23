@@ -1,20 +1,26 @@
 use ordered_float::OrderedFloat;
 use std::fs::File;
 use std::io::Write;
+use std::rc::Rc;
 
 use dogs::search_space::{SearchSpace, TotalNeighborGeneration, GuidedSpace, ToSolution};
 
 use crate::nehhelper::{compute_eqf, Eqf, compute_idle_time, LocalState};
 use crate::pfsp::{JobId, Time, Instance, ProblemObjective, checker};
 
+/// guide fonction to use
 #[derive(Debug, Clone)]
 pub enum Guide {
-    Bound,  // no tie breaking
-    FF,  // FF tie breaking (see https://www.sciencedirect.com/science/article/abs/pii/S0305054813003638)
+    /// no tie breaking
+    Bound,
+    /// FF tie breaking (see https://www.sciencedirect.com/science/article/abs/pii/S0305054813003638)
+    FF,
+    /// use idle time in guidance strategy
     Alpha,
 }
 
 
+/// Defines an insertion based node
 #[derive(Debug, Clone)]
 pub struct NEHNode {
     /// already inserted jobs (partial sequence)
@@ -27,8 +33,10 @@ pub struct NEHNode {
     idletime: Option<Time>,
 }
 
+/// Insertion-based branch-and-bound search space
+#[derive(Debug)]
 pub struct NEHSearch {
-    inst: Instance,
+    inst: Rc<Instance>,
     /// ordered jobs according to the ordering heuristic
     ordered_jobs: Vec<JobId>,
     guide: Guide,
@@ -189,8 +197,8 @@ impl TotalNeighborGeneration<NEHNode> for NEHSearch {
 
 
 impl NEHSearch {
-    pub fn new(filename: &str, guide: Guide, solution_file:Option<String>) -> Self {
-        let inst = Instance::new(filename).unwrap();
+    /// creates a new search space from the instance, the guide function, and possibly a solution filename
+    pub fn new(inst:Rc<Instance>, guide: Guide, solution_file:Option<String>) -> Self {
         // sort ordered_jobs by non-increasing sum of processing times
         let n = inst.nb_jobs();
         let m = inst.nb_machines();

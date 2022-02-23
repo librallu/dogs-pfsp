@@ -9,16 +9,17 @@ edition = "2018"
 [dependencies]
 dogs = "1.3.0"
 # dogs = { path = "../dogs" }
-clap = {version="2.33.3", features=["yaml"]}
+clap = {version="2.34.0", features=["yaml"]}
 bit-set = "0.5.2"
 ordered-float = "2.0.0"
 serde = { version = "1.0.114", features = ["derive"] }
 serde_json = "1.0.57"
+fastrand = "1.7.0"
 
 [profile.release]
-debug = true # to be removed eventually
+# debug = true # to be removed eventually
 #### optimizations for faster run (compile-time longer)
-# lto = "fat" # optimize over all crates at once (more program speed, longer compile time)
-# codegen-units = 1 # do not split to compile faster (more program speed, longer compile time)
+lto = "fat" # optimize over all crates at once (more program speed, longer compile time)
+codegen-units = 1 # do not split to compile faster (more program speed, longer compile time)
 # target-cpu="native" # optimizes for this cpu
-# panic = "abort" # better cache usage related to panics
+panic = "abort" # better cache usage related to panics

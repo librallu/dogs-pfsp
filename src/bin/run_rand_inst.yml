@@ -1,0 +1,90 @@
+name: dogs-pfsp
+version: "1.0"
+author: Luc Libralesso <libralesso.l@gmail.com>
+about: Discrete Optimization Global Search -- solving a random permutation flowshop instance using iterative beam search
+args:
+    - nb_jobs:
+        long: nb_jobs
+        help: number of jobs in the instance
+        value_name: NBJOBS
+        required: true
+        takes_value: true
+    - nb_machines:
+        long: nb_machines
+        help: number of machines in the instance
+        value_name: NBMACHINES
+        required: true
+        takes_value: true
+    - time:
+        long: time
+        short: t
+        help: Time in seconds to solve the instance
+        value_name: TIME
+        required: true
+        takes_value: true
+    - perf:
+        long: perf
+        short: p
+        help: "performance statistics json file where to export the search statistics"
+        value_name: PERF_FILE
+        takes_value: true
+subcommands:
+    - f_flowtime:
+        about: solves the flowtime minimization using a forward search
+        version: "1.0"
+        args:
+            - guide:
+                short: g
+                long: guide
+                help: guide to use
+                value_name: GUIDE
+                takes_value: true
+                required: true
+                possible_values:
+                  - bound
+                  - idle
+                  - alpha
+    - neh_makespan:
+        about: solves the flowtime minimization using a NEH-based tree search
+        version: "1.0"
+        args:
+            - guide:
+                short: g
+                long: guide
+                help: guide to use
+                value_name: GUIDE
+                takes_value: true
+                required: true
+                possible_values:
+                  - bound
+                  - ff
+                  - alpha
+    - fb_makespan:
+        about: solves the makespan minimization using a bidirectional tree search
+        version: "1.0"
+        args:
+            - guide:
+                short: g
+                long: guide
+                help: guide to use
+                value_name: GUIDE
+                takes_value: true
+                required: true
+                possible_values:
+                  - bound
+                  - idle
+                  - alpha
+                  - walpha
+                  - gap
+                  - combined
+            - branching:
+                short: b
+                long: branching
+                help: branching-scheme to use
+                value_name: BRANCHING
+                takes_value: true
+                required: true
+                possible_values:
+                  - forward
+                  - bi_alt
+                  - bi_min

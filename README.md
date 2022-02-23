@@ -149,3 +149,51 @@ should produce:
 ```
 Solution value: 6.63524e+06
 ```
+
+
+# Using a randomly generated instance
+
+```./target/release/run_rand_inst --nb_jobs 800 --nb_machines 60 --time 30 --perf tmp/perf.json fb_makespan --guide walpha --branching bi_min```
+
+Should produce the following results:
+
+```
+	 printing perfs in: tmp/perf.json
+
+ time (s)      dual      nb nodes       objective      Iter           
+----------------------------------------------------------------------
+  0.000                                                start D=1      
+  0.141        42.958    320.4 k        50.253                        
+  0.141        42.958    320.4 k        50.253         start D=2      
+  0.419        42.958    960.4 k        47.799                        
+  0.420        42.958    960.4 k        47.799         start D=4      
+  0.970        42.958    2.2 M          47.581                        
+  0.971        42.958    2.2 M          47.569                        
+  0.971        42.958    2.2 M          47.569         start D=8      
+  2.067        42.958    4.8 M          46.880                        
+  2.067        42.958    4.8 M          46.880         start D=16     
+  4.249        42.958    9.9 M          46.485                        
+  4.249        42.958    9.9 M          46.452                        
+  4.249        42.958    9.9 M          46.452         start D=32     
+  8.656        43.050    20.1 M         45.999                        
+  8.656        43.050    20.1 M         45.999         start D=64     
+  18.182       43.050    40.6 M         45.771                        
+  18.182       43.050    40.6 M         45.754                        
+  18.182       43.050    40.6 M         45.744                        
+  18.182       43.050    40.6 M         45.744         start D=128    
+
+               dual bound          43050
+
+
+                nb pruned            232
+
+             nb generated         68.0 M
+              nb expanded        145.0 k
+               nb trashed         116.0 
+     avg branching factor            468
+                  nb eval          22.0 
+                 nb guide         68.0 M
+        time searched (s)         30.000
+      generated nodes / s          2.3 M
+        solutions created           0.0 
+```

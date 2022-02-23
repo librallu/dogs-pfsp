@@ -2,26 +2,31 @@ use std::fs::File;
 use std::io::{BufRead, BufReader, Error};
 use std::vec::Vec;
 
+/// defines a job id
 pub type JobId = u32;
+
+/// defines a machine id
 pub type MachineId = u32;
+
+/// defines a time unit measure
 pub type Time = i64;
 
 /// problem objective
+#[derive(Debug)]
 pub enum ProblemObjective {
+    /// makespan minimization (minimize latest job end)
     Makespan,
+    /// minimize the flowtime (or total completion time)
     Flowtime,
 }
 
+/// Defines a flowshop instance
 #[derive(Debug)]
 pub struct Instance {
-    /// name of the instance
-    name: String,
     /// number of jobs
     n: JobId,
     /// number of machines
     m: MachineId,
-    /// nb_jobs / nb_machines
-    job_machine_ratio: f64,
     /// processing time of job i on machine j
     p: Vec<Vec<Time>>,
     /// sum_p[m]: sum of completion times on machine m
@@ -68,10 +73,8 @@ impl Instance {
         let (sum_better_first,sum_better_last) = Self::compute_better_first_last(&p);
         // return the instance
         Ok(Instance {
-            name: filename.to_string(),
             n,
             m,
-            job_machine_ratio: n as f64 / m as f64,
             p,
             sum_p,
             sum_better_first,
@@ -81,6 +84,9 @@ impl Instance {
     }
 
     /// creates an instance from a processing time matrix
+    /// 
+    /// ## Parameters:
+    ///  - `p[i][j]`: processing time of job j on machine i
     #[allow(dead_code)]
     pub fn from_pmj(p:Vec<Vec<Time>>) -> Self {
         let sum_p = Self::compute_sum_p(&p);
@@ -89,10 +95,8 @@ impl Instance {
         let processing_time_bound:Time = *sum_p.iter().max().unwrap();
         let (sum_better_first,sum_better_last) = Self::compute_better_first_last(&p);
         Self {
-            name: "NONAME_INSTANCE".to_string(),
             n,
             m,
-            job_machine_ratio: n as f64 / m as f64,
             p,
             sum_p,
             sum_better_first,
@@ -168,6 +172,7 @@ impl Instance {
 
 }
 
+/// checks that a solution is valid, given an instance, an objective to minimize, and the solution
 pub fn checker(inst: &Instance, objective:ProblemObjective, sol:&[JobId]) -> Time {
     let m = inst.nb_machines();
     let n = inst.nb_jobs();

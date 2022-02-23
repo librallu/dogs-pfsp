@@ -46,6 +46,7 @@ pub enum BidirectionalScheme {
     MinChildren,
 }
 
+/// Bi-directional search decision (either forward insertion or backward insertion)
 #[derive(Debug, Clone)]
 pub enum FBDecision {
     /// no decision
@@ -61,7 +62,9 @@ pub enum FBDecision {
  */
 #[derive(Debug, Clone)]
 pub enum BranchingScheme {
+    /// forward only
     Forward,
+    /// bi-directional search depending on a strategy (bidirectional search)
     Bidirectional(BidirectionalScheme), 
 }
 
@@ -88,6 +91,7 @@ pub struct FBNodeLazyPart {
     decision_tree: Rc<DecisionTree<FBDecision>>,
 }
 
+/// node of the search-space
 #[derive(Debug, Clone)]
 pub struct FBNode {
     /// part of the node that can be computed after
@@ -106,10 +110,11 @@ pub struct FBNode {
     last_decision: FBDecision,
 }
 
+/// bi-directional search-space
 #[derive(Debug)]
 pub struct FBMakespan {
     /// instance object
-    inst: Instance,
+    inst: Rc<Instance>,
     /// best objective so far
     best_val: Option<Time>,
     /// counts number of prunings (for statistics)
@@ -302,8 +307,8 @@ impl TotalNeighborGeneration<FBNode> for FBMakespan {
 
 
 impl FBMakespan {
-    pub fn new(filename: &str, guide:Guide, branchingscheme:BranchingScheme, use_ls:bool, solution_filename:Option<String>) -> Self {
-        let inst = Instance::new(filename).unwrap();
+    /// creates a new search space
+    pub fn new(inst: Rc<Instance>, guide:Guide, branchingscheme:BranchingScheme, use_ls:bool, solution_filename:Option<String>) -> Self {
         Self {
             inst,
             best_val: None,
@@ -424,11 +429,11 @@ impl FBMakespan {
         // iterate over the front, update the bound
         match generate_forward {
             true => {
-                let p = self.inst.p(j, 0);
-                let mut current_front = lazy_part.forward_front[0] + p;
+                let p0 = self.inst.p(j, 0);
+                let mut current_front = lazy_part.forward_front[0] + p0;
                 bound = max(
                     bound, 
-                    current_front + lazy_part.remaining_processing_time[0] - p + lazy_part.backward_front[0]
+                    current_front + lazy_part.remaining_processing_time[0] - p0 + lazy_part.backward_front[0]
                 );
                 for i in 1..m {
                     let p = self.inst.p(j, i);
@@ -441,9 +446,9 @@ impl FBMakespan {
                 }
             },
             false => {
-                let p = self.inst.p(j, m-1);
-                let mut current_front = lazy_part.backward_front[m as usize -1] + p;
-                bound = max(bound, current_front + lazy_part.remaining_processing_time[0] - p + lazy_part.forward_front[0]);
+                let p0 = self.inst.p(j, m-1);
+                let mut current_front = lazy_part.backward_front[m as usize -1] + p0;
+                bound = max(bound, current_front + lazy_part.remaining_processing_time[0] - p0 + lazy_part.forward_front[0]);
                 for i in (0..m-1).rev() {
                     let p = self.inst.p(j, i);
                     let start = max(current_front, lazy_part.backward_front[i as usize]);
@@ -477,8 +482,7 @@ impl FBMakespan {
             Guide::Alpha   => {
                 let alpha = self.compute_alpha(&res);
                 let n = res.nb_added as f64;
-                let m = self.inst.nb_machines() as f64;
-                let c = n/m;
+                let c = n/m as f64;
                 OrderedFloat(
                     (bound as f64) * alpha +
                     ((new_idle + lazy_part.idletime) as f64) * c * (1.-alpha)
